@@ -168,8 +168,9 @@ class CTScan(torch.utils.data.Dataset):
         return np.load(mmap_path, mmap_mode='r')
 
     def _get_slices_with_classes_mask(self, class_names, th=0):
-        labels_cache = self.labels_path.with_name(self.name + '_' + '_'.join(class_names) + f'_thresh_{th}.npy')
-        # print(labels_cache)
+        temp_folder = Path("/scratch/project_465001111/coin_temp")
+        labels_cache = temp_folder / 'classes_masks' /(self.name + '_' + '_'.join(class_names) + f'_thresh_{th}.npy')
+        print(f"Creating/Loading lables :{labels_cache}")
         if labels_cache.exists():
             return np.load(labels_cache)
         
