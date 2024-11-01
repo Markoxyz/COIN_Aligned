@@ -1,5 +1,6 @@
 from itertools import chain
 from pathlib import Path
+import os
 
 import torch
 from torch.utils.data import ConcatDataset
@@ -21,14 +22,19 @@ class TUHDataset(torch.utils.data.Dataset):
         self.root_dir = Path(root_dir)
         self.split = split
         
-        self.ann_path = self.root_dir / split_dir / f'{split}_scans.csv'
-        assert self.ann_path.exists()
+        #self.ann_path = self.root_dir / split_dir / f'{split}_scans.csv'
+        self.ann_path = os.path.join(split_dir, f'{split}_scans.csv')
+        #assert self.ann_path.exists()
         with open(self.ann_path, 'r') as fid:
             scan_names = set(fid.read().splitlines())
         assert scan_names, f'No scans found in split: {self.ann_path}'
         
-        scans_dir = self.root_dir / 'imagesTr'
-        labels_dir = self.root_dir / 'labelsTr'
+        
+        # THIS IS ALL BECAUSE OF THE WAY THE DATA IS ORGANIZED
+        ## TRAIN
+        # CASES
+        scans_dir = self.root_dir / 'tuh_train' / 'cases' / 'images' / 'train'
+        labels_dir = self.root_dir / 'tuh_train' / 'cases' / 'labels' / 'train'
         self.scans = []
         for i, sp in enumerate(scans_dir.rglob('*.nii.gz')):
             if i > limit_scans:
@@ -38,6 +44,48 @@ class TUHDataset(torch.utils.data.Dataset):
                 continue
             # self.scans.append(CTScan(sp, labels_dir / sp.parent.name / sname, **scan_params))
             self.scans.append(CTScan(sp, labels_dir / sname, **scan_params))
+
+
+        # CONTROLS
+        scans_dir = self.root_dir / 'tuh_train' / 'controls' / 'images' / 'train'
+        labels_dir = self.root_dir / 'tuh_train' / 'controls' / 'labels' / 'train'
+        for i, sp in enumerate(scans_dir.rglob('*.nii.gz')):
+            if i > limit_scans:
+                break
+            sname = sp.name.replace('_0000', '')
+            if sname not in scan_names:
+                continue
+            # self.scans.append(CTScan(sp, labels_dir / sp.parent.name / sname, **scan_params))
+            self.scans.append(CTScan(sp, labels_dir / sname, **scan_params))
+        
+        ### TEST
+        # CASES
+        scans_dir = self.root_dir / 'tuh_test' / 'cases' / 'images' / 'test'
+        labels_dir = self.root_dir / 'tuh_test' / 'cases' / 'labels' / 'test'
+
+        for i, sp in enumerate(scans_dir.rglob('*.nii.gz')):
+            if i > limit_scans:
+                break
+            sname = sp.name.replace('_0000', '')
+            if sname not in scan_names:
+                continue
+            # self.scans.append(CTScan(sp, labels_dir / sp.parent.name / sname, **scan_params))
+            self.scans.append(CTScan(sp, labels_dir / sname, **scan_params))
+
+        #CONTROLS 
+        scans_dir = self.root_dir / 'tuh_test' / 'controls' / 'images' / 'test'
+        labels_dir = self.root_dir / 'tuh_test' / 'controls' / 'labels' / 'test'
+
+        for i, sp in enumerate(scans_dir.rglob('*.nii.gz')):
+            if i > limit_scans:
+                break
+            sname = sp.name.replace('_0000', '')
+            if sname not in scan_names:
+                continue
+            # self.scans.append(CTScan(sp, labels_dir / sp.parent.name / sname, **scan_params))
+            self.scans.append(CTScan(sp, labels_dir / sname, **scan_params))
+
+        # Remove elements from self.scans that have length 0
 
         self.scans_dataset = ConcatDataset(self.scans)
         self.classes = self.scans[0].classes

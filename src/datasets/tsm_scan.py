@@ -155,14 +155,16 @@ class CTScan(torch.utils.data.Dataset):
         self.norm = get_normalization_scheme(**norm_scheme)
 
     def load_volume(self, scan_path: Path, dtype=np.int32) -> np.ndarray:
-        mmap_path = scan_path.with_name(scan_path.stem + '.npy')
+        #mmap_path = scan_path.with_name(scan_path.stem + '.npy')
+        temp_folder = Path("/scratch/project_465001111/coin_temp")
+        mmap_path = temp_folder / (scan_path.stem + '.npy')
         if scan_path.suffix == '.gz' and not mmap_path.exists():
             ct_scan = nib.load(scan_path, mmap=True)
             vol_mmap = open_memmap(mmap_path, 'w+', dtype, shape=ct_scan.shape)
             vol_mmap[:] = ct_scan.get_fdata(dtype=np.float32, caching='unchanged').astype(dtype)
             print(f'Created memory mapped object for: {scan_path}')
             return vol_mmap
-        # print(f'Loaded memory mapped object from: {mmap_path}')
+        #print(f'Loaded memory mapped object from: {mmap_path}')
         return np.load(mmap_path, mmap_mode='r')
 
     def _get_slices_with_classes_mask(self, class_names, th=0):

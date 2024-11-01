@@ -195,3 +195,5 @@ saved_models/
 *.7z
 *.out
 data
+configs/tuh_test_configs_marko/splits/test_scans.csv
+configs/tuh_test_configs_marko/splits/train_scans.csv

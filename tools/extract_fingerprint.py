@@ -4,6 +4,8 @@ from json import dump
 from pathlib import Path
 from pprint import pprint
 
+print(Path.cwd())
+
 import numpy as np
 import torch
 import yaml
