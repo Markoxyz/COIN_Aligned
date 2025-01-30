@@ -44,7 +44,15 @@ class ClassificationTrainer(BaseTrainer):
         self.model.optimizer.load_state_dict(state['optimizers'][0])
         self.logger.info(f"Restored checkpoint {latest_ckpt} ({state['date']})")
 
-    def save_state(self) -> str:
+    def save_state(self, latest = False, best = False) -> str:
+        if best:
+            self.logger.info('Saving best checkpoint...')
+            return save_model(self.opt, self.model, (self.model.optimizer,), self.batches_done, -2, self.ckpt_dir)
+         
+        if latest:
+            self.logger.info('Saving latest checkpoint...')
+            return save_model(self.opt, self.model, (self.model.optimizer,), self.batches_done, -1, self.ckpt_dir)
+
         return save_model(self.opt, self.model, (self.model.optimizer,), self.batches_done, self.current_epoch, self.ckpt_dir)
 
     def training_epoch(self, loader: torch.utils.data.DataLoader) -> None:

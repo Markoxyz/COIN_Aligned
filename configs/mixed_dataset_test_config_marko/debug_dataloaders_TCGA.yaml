@@ -3,28 +3,28 @@ task_name: classification
 seed: 777
 sample_interval: 30
 
-n_epochs: 100
+n_epochs: 6
 epoch_steps: 50
 
-logging_dir: /scratch/project_465001111/coin_training_logs/classification/tuh-full-ctnorm
+logging_dir: /scratch/project_465001111/coin_training_logs/classification/tuh_kits_TCGA
 experiment_name: Initial_test
-checkpoint_freq: 50
+checkpoint_freq: 2
 
 dataset:
   kind: merged
-  batch_size: 256
+  batch_size: 128
   img_size: [256, 256] # hxw
   use_sampler: True
   reset_sampler: True
-  num_workers: 28
+  num_workers: 7
   imagenet_norm: False # mean=[0.5], std=[0.5]
   root_dir: null
-  augs: [hflip, vflip, shift_scale_rotate] # only resize and norm
-
+  augs: [hflip, vflip] # only resize and norm
+  
   datasets:
-    - kind: tuh
-      root_dir: /projappl/project_465001111/ct_data/kidney
-      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/tuh_test_configs_marko/splits
+    - kind: tcga
+      root_dir: /scratch/project_465001111/ct_data/kidney/data
+      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/mixed_dataset_test_config_marko/splits/TCGA
 
       # TUH_LABEL_NAMES = {
       #     1: "kidney",

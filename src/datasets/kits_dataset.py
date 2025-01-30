@@ -8,17 +8,22 @@ from src.datasets.tsm_scan import CTScan as _CTScan
 
 
 class CTScan(_CTScan):
+    #slicing_dims = {
+    #    'axial': 0,  # top down view
+    #    'sagittal': 1,  # side view
+    #    'coronal': 2,  # front view
+    #}
     slicing_dims = {
-        'axial': 0,  # top down view
-        'sagittal': 1,  # side view
-        'coronal': 2,  # front view
+        'sagittal': 0,  # side view
+        'coronal': 1,  # front view
+        'axial': 2,  # top down view
     }
     
     def __getitem__(self, index):
         s = super().__getitem__(index)
-        s['image'] = s['image'].transpose(2, 1).flip(2)
+        s['image'] = s['image'].transpose(2,1).flip((1, 2))
         if s['masks'].shape[0] != 0:
-            s['masks'] = s['masks'].transpose(2, 1).flip(2)
+            s['masks'] = s['masks'].transpose(2,1).flip((1, 2))
         return s
         
 
@@ -37,11 +42,11 @@ class KITSDataset(torch.utils.data.Dataset):
         for i, sn in enumerate(scan_names):
             if i > limit_scans:
                 break
-            self.scans.append(CTScan(self.root_dir / sn / 'imaging.nii.gz', self.root_dir / sn / 'segmentation.nii.gz', **scan_params))
+            self.scans.append(CTScan(self.root_dir / 'imagesTr'/ split / sn.replace('.nii.gz','_0000.nii.gz'), self.root_dir / 'labelsTr'/ split / sn, **scan_params))
 
         self.scans_dataset = ConcatDataset(self.scans)
         self.classes = self.scans[0].classes
-
+        
     def get_sampling_labels(self):
         lbs = list(chain.from_iterable(scan.get_sampling_labels() for scan in self.scans))
         print(f'[KiTS dataset] Number of slices with positive sampling label:', sum(lbs))

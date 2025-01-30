@@ -51,7 +51,9 @@ class CounterfactualTrainer(BaseTrainer):
         self.model.optimizer_D.load_state_dict(state['optimizers'][1])
         self.logger.info(f"Restored checkpoint {load_ckpt} ({state['date']})")
 
-    def save_state(self) -> str:
+    def save_state(self, latest=False) -> str:
+        if latest:
+            return save_model(self.opt, self.model, (self.model.optimizer_G, self.model.optimizer_D), self.batches_done, -1, self.ckpt_dir)
         return save_model(self.opt, self.model, (self.model.optimizer_G, self.model.optimizer_D), self.batches_done, self.current_epoch, self.ckpt_dir)
 
     def get_dataloaders(self, ret_cf_labels:bool=False, skip_cf_sampler=True) -> tuple:
@@ -76,10 +78,12 @@ class CounterfactualTrainer(BaseTrainer):
 
         stats = AvgMeter()
         epoch_steps = self.opt.get('epoch_steps')
+        avg_pos_to_neg_ratio = 0.0
         with tqdm(enumerate(loader), desc=f'Training epoch {self.current_epoch}', leave=False, total=epoch_steps or len(loader)) as prog:
             for i, batch in prog:
                 if i == epoch_steps:
                     break
+                avg_pos_to_neg_ratio += batch['label'].sum() / batch['label'].shape[0]
                 self.batches_done = self.current_epoch * len(loader) + i
                 sample_step = self.batches_done % self.opt.sample_interval == 0
                 outs = self.model(batch, training=True, compute_norms=sample_step and self.compute_norms, global_step=self.batches_done)
@@ -93,8 +97,9 @@ class CounterfactualTrainer(BaseTrainer):
                         for model_name, norms in self.model.norms.items():
                             self.logger.log(norms, self.batches_done, f'{model_name}_gradients_norm')
         epoch_stats = stats.average()
-        if self.current_epoch % self.opt.eval_counter_freq == 0:
-            epoch_stats.update(self.evaluate_counterfactual(loader, phase='train'))
+        #if self.current_epoch % self.opt.eval_counter_freq == 0 and self.current_epoch > 0:
+            #epoch_stats.update(self.evaluate_counterfactual(loader, phase='train'))
+        self.logger.info('[Average positives/negatives ratio in batch: %f]' % round(avg_pos_to_neg_ratio.item() / len(loader), 3))
         self.logger.log(epoch_stats, self.current_epoch, 'train')
         self.logger.info(
             '[Finished training epoch %d/%d] [Epoch D loss: %f] [Epoch G loss: %f]'
@@ -116,7 +121,7 @@ class CounterfactualTrainer(BaseTrainer):
                 save_image(outs['gen_imgs'][:16].data, self.vis_dir / ('%d_val_%d.jpg' % (self.batches_done, i)), nrow=4, normalize=True)
         self.logger.info('[Average positives/negatives ratio in batch: %f]' % round(avg_pos_to_neg_ratio.item() / len(loader), 3))
         epoch_stats = stats.average()
-        if self.current_epoch % self.opt.eval_counter_freq == 0:
+        if self.current_epoch % self.opt.eval_counter_freq == 0 and self.current_epoch > 0:
             epoch_stats.update(self.evaluate_counterfactual(loader, phase='val'))
         self.logger.log(epoch_stats, self.current_epoch, 'val')
         self.logger.info(

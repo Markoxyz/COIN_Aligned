@@ -8,6 +8,7 @@ import torch.nn as nn
 from easydict import EasyDict as edict
 
 from src.utils.generic_utils import get_experiment_folder_path
+from torch.profiler import profile, ProfilerActivity
 
 from ..logger import Logger
 
@@ -66,13 +67,51 @@ class BaseTrainer:
     def fit(self):
         data_loaders = self.get_dataloaders()
         train_loader, val_loader = data_loaders
+        if self.opt.task_name == 'classification':
+            loss_history = [1]
+        
         for _ in range(self.current_epoch, self.opt.n_epochs):
+            #prof = None
+            #print("Starting profile...")
+            #prof = profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA])
+            #prof.start()
+            
             _ = self.training_epoch(train_loader)
-            _ = self.validation_epoch(val_loader)
+            
+            #if prof:
+             #   prof.stop()
+            #    prof.export_chrome_trace(f"/users/lillemag/RUN_LOGS/profiler_exports/trace_{self.current_epoch}.json")
+            
+            if self.opt.task_name == 'classification':
+                val_results = self.validation_epoch(val_loader)
+            
+            if self.opt.task_name != 'classification':
+                if self.current_epoch % self.opt.eval_counter_freq == 0:
+                    val_results = self.validation_epoch(val_loader)
+            
+            
+            ### Using the validation results to save the best model
             # TODO: add checkpoint saving based on the metric monitored in epoch stats
             if self.current_epoch % self.opt.checkpoint_freq == 0:
                 ckpt_path = self.save_state()
                 self.logger.info(f'Saved checkpoint parameters at epoch {self.current_epoch}: {ckpt_path}')
             self.current_epoch += 1
+            
+            if self.opt.task_name == 'classification':
+                if val_results['loss'] < min(loss_history):
+                    ckpt_path = self.save_state(best = True)
+                    self.logger.info(f'Saved best checkpoint parameters at epoch {self.current_epoch}: {ckpt_path}')
+                else:
+                    ckpt_path = self.save_state(latest = True)
+                    self.logger.info(f'Saved checkpoint parameters at epoch {self.current_epoch}: {ckpt_path}')
+                
+                loss_history.append(val_results['loss'])
+                
+            
+            if self.opt.task_name == 'counterfactual_inpainting':
+                ckpt_path = self.save_state(latest = True)
+                self.logger.info(f'Saved checkpoint parameters at epoch {self.current_epoch}: {ckpt_path}')
+            
+            
         ckpt_path = self.save_state()
         self.logger.info(f'Saved checkpoint parameters at epoch {self.current_epoch}: {ckpt_path}')

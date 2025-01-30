@@ -88,9 +88,11 @@ def main(args):
 
     attributors = ATTRIBUTORS.keys() if args.attributors == ['all'] else args.attributors
     if attributors:
+        logging.info(f'Attributors to be evaluated: {attributors}')
         eval_attributors(attributors, trainer, test_loader, args.sal_threshold)
     else:
-        trainer.evaluate_counterfactual(train_loader, phase='train', tau=args.tau, skip_fid=args.skip_fid, postprocess_morph=args.postprocess_cf)
+        logging.info('Evaluating counterfactuals WO attributors')
+        #trainer.evaluate_counterfactual(train_loader, phase='train', tau=args.tau, skip_fid=args.skip_fid, postprocess_morph=args.postprocess_cf)
         trainer.evaluate_counterfactual(test_loader, phase='val', tau=args.tau, skip_fid=args.skip_fid, postprocess_morph=args.postprocess_cf)
 
 

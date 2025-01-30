@@ -90,6 +90,7 @@ class TUHDataset(torch.utils.data.Dataset):
         self.scans_dataset = ConcatDataset(self.scans)
         self.classes = self.scans[0].classes
 
+
     def get_sampling_labels(self):
         lbs = list(chain.from_iterable(scan.get_sampling_labels() for scan in self.scans))
         print(f'[TUH dataset] Number of slices with positive sampling label:', sum(lbs))

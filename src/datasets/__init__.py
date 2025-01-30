@@ -13,6 +13,7 @@ from src.datasets.kits_dataset import KITSDataset
 from src.datasets.lungs import LungsDataset
 from src.datasets.tsm_synth_dataset import TSMSyntheticDataset
 from src.datasets.tuh_dataset import TUHDataset
+from src.datasets.TCGA_dataset import TCGADataset
 from src.utils.generic_utils import seed_everything
 
 
@@ -26,9 +27,12 @@ def build_dataset(kind: str, root_dir: Path, split: str, transforms:albu.Compose
         return TSMSyntheticDataset(root_dir, split, transforms=transforms, limit_scans=kwargs.get('limit_scans', 999999), **scan_params)
     elif kind == 'kits':
         return KITSDataset(root_dir, split, transforms=transforms, **scan_params, **kwargs)
+    elif kind == 'tcga':
+        return TCGADataset(root_dir, split, transforms=transforms, **scan_params, **kwargs)
     elif kind == 'tuh':
         return TUHDataset(root_dir, split, transforms=transforms, **scan_params, **kwargs)
     elif kind == 'merged':
+        logging.info(f'HERE ARE THE DATASET CONFIGS: {kwargs["datasets"]}')
         return MergedDataset(split, transforms, kwargs['datasets'])
     else:
         raise ValueError(f'Unsupported dataset kind provided: {kind}')
@@ -77,10 +81,14 @@ def get_dataloaders(params, data_transforms, sampler_labels=None, seed=42):
         else:
             sampler_labels = train_data.get_sampling_labels() if sampler_labels is None else sampler_labels
             numpy.save(sampler_labels_cache, sampler_labels)
-            print('Cached training sampler labels at:', sampler_labels_cache)
+            #print('Cached training sampler labels at:', sampler_labels_cache)
 
+    #print("sampler Labels", sampler_labels)
+    # num_samples=int(params.get('batch_size'))*10
     train_sampler = ImbalancedDatasetSampler(train_data, labels=sampler_labels) if use_sampler else None
     print('Instantiated training dataset for number of samples:', len(train_data))
+
+    #print('TRAIN SAMPLER IS USED ?', train_sampler)
 
     test_data = build_dataset(split='test', transforms=data_transforms['val'], **params)
     print('Instantiated validation dataset for number of samples:', len(test_data))

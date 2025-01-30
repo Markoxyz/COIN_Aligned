@@ -29,21 +29,21 @@ def main(args):
     trainer = build_trainer(opt.task_name, opt, model, args.continue_path)
 
     
-    # train_loader, val_loader = trainer.get_dataloaders()
+    train_loader, val_loader = trainer.get_dataloaders()
 
-    # from PIL import Image
-    # for i, batch in enumerate(train_loader):
-    #     inputs, labels = batch['image'], batch['label']
-    #     print(i, labels)
-    #     img = (((inputs[0, 0] + 1) / 2)*255).clamp(0, 255).byte()
-    #     Image.fromarray(img.cpu().numpy()).save(f'tmp/b/{i}.png')
-    #     if i == 30:
-    #         break
-    # if args.continue_path is None:
-    #     shutil.copy2(args.config_path, trainer.logging_dir / 'hparams.yaml')
-    # logging.info('Started training.')
-    trainer.fit()
-    torch.save(model.state_dict(), 'sd1.pt')
+    from PIL import Image
+    for i, batch in enumerate(train_loader):
+        inputs, labels = batch['image'], batch['label']
+        img = (((inputs[0, 0] + 1) / 2)*255).clamp(0, 255).byte()
+        print(i, img.shape, inputs.shape)
+        Image.fromarray(img.cpu().numpy()).save(f'tmp/b/{i}.png')
+        if i == 10:
+            break
+    #if args.continue_path is None:
+        #shutil.copy2(args.config_path, trainer.logging_dir / 'hparams.yaml')
+    #logging.info('Started training.')
+    #trainer.fit()
+    #torch.save(model.state_dict(), 'sd1.pt')
     # logging.info('Finished training.')
 
 
