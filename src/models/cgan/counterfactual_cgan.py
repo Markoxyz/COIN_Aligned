@@ -152,8 +152,9 @@ class CounterfactualCGAN(nn.Module):
         )
         # L_rec(x, I_f(I_f(x, c), f(x)))
         cyclic_term = rec_fn(real_imgs, ifxc_fx)
+        
         return forward_term + cyclic_term
-
+    
     def forward(self, batch, training=False, validation=False, compute_norms=False, global_step=None):
         assert training and not validation or validation and not training
 

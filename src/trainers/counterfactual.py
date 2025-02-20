@@ -97,8 +97,8 @@ class CounterfactualTrainer(BaseTrainer):
                         for model_name, norms in self.model.norms.items():
                             self.logger.log(norms, self.batches_done, f'{model_name}_gradients_norm')
         epoch_stats = stats.average()
-        #if self.current_epoch % self.opt.eval_counter_freq == 0 and self.current_epoch > 0:
-            #epoch_stats.update(self.evaluate_counterfactual(loader, phase='train'))
+        if self.current_epoch % self.opt.eval_counter_freq == 0 and self.current_epoch > 0:
+            epoch_stats.update(self.evaluate_counterfactual(loader, phase='train'))
         self.logger.info('[Average positives/negatives ratio in batch: %f]' % round(avg_pos_to_neg_ratio.item() / len(loader), 3))
         self.logger.log(epoch_stats, self.current_epoch, 'train')
         self.logger.info(
@@ -119,9 +119,11 @@ class CounterfactualTrainer(BaseTrainer):
             stats.update(outs['loss'])
             if i % self.opt.sample_interval == 0 and self.opt.get('vis_gen', True):
                 save_image(outs['gen_imgs'][:16].data, self.vis_dir / ('%d_val_%d.jpg' % (self.batches_done, i)), nrow=4, normalize=True)
+                save_image(outs['healthy_examples'][:16].data, self.vis_dir / ('%d_val_healthy_%d.jpg' % (self.batches_done, i)), nrow=4, normalize=True)
         self.logger.info('[Average positives/negatives ratio in batch: %f]' % round(avg_pos_to_neg_ratio.item() / len(loader), 3))
         epoch_stats = stats.average()
         if self.current_epoch % self.opt.eval_counter_freq == 0 and self.current_epoch > 0:
+            #epoch_stats.update(self.evaluate_counterfactual(loader, phase='train'))
             epoch_stats.update(self.evaluate_counterfactual(loader, phase='val'))
         self.logger.log(epoch_stats, self.current_epoch, 'val')
         self.logger.info(

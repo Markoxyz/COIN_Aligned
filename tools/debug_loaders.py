@@ -30,15 +30,29 @@ def main(args):
 
     
     train_loader, val_loader = trainer.get_dataloaders()
+    
 
     from PIL import Image
     for i, batch in enumerate(train_loader):
-        inputs, labels = batch['image'], batch['label']
+        inputs, labels, healthy = batch['image'], batch['label'], batch['healthy_example']
+        
+        
+        print(type(inputs))
+        logging.info(type(inputs))
         img = (((inputs[0, 0] + 1) / 2)*255).clamp(0, 255).byte()
         print(i, img.shape, inputs.shape)
         Image.fromarray(img.cpu().numpy()).save(f'tmp/b/{i}.png')
+        
+        img_2 = (((healthy[0, 0] + 1) / 2)*255).clamp(0, 255).byte()
+        Image.fromarray(img_2.cpu().numpy()).save(f'tmp/b/{i}_healthy.png')
+        
+        
         if i == 10:
             break
+    
+    
+    
+    
     #if args.continue_path is None:
         #shutil.copy2(args.config_path, trainer.logging_dir / 'hparams.yaml')
     #logging.info('Started training.')

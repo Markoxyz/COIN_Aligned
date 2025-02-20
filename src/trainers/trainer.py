@@ -78,6 +78,8 @@ class BaseTrainer:
             
             _ = self.training_epoch(train_loader)
             
+            #_ = self.validation_epoch(train_loader)
+            
             #if prof:
              #   prof.stop()
             #    prof.export_chrome_trace(f"/users/lillemag/RUN_LOGS/profiler_exports/trace_{self.current_epoch}.json")

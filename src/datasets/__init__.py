@@ -15,6 +15,7 @@ from src.datasets.tsm_synth_dataset import TSMSyntheticDataset
 from src.datasets.tuh_dataset import TUHDataset
 from src.datasets.TCGA_dataset import TCGADataset
 from src.utils.generic_utils import seed_everything
+from src.datasets.tuh_dataset_paired import TUHDataset_pairs
 
 
 def build_dataset(kind: str, root_dir: Path, split: str, transforms:albu.Compose, **kwargs):
@@ -31,6 +32,8 @@ def build_dataset(kind: str, root_dir: Path, split: str, transforms:albu.Compose
         return TCGADataset(root_dir, split, transforms=transforms, **scan_params, **kwargs)
     elif kind == 'tuh':
         return TUHDataset(root_dir, split, transforms=transforms, **scan_params, **kwargs)
+    elif kind == 'tuh_pairs':
+        return TUHDataset_pairs(root_dir, split, transforms=transforms, **scan_params, **kwargs)
     elif kind == 'merged':
         logging.info(f'HERE ARE THE DATASET CONFIGS: {kwargs["datasets"]}')
         return MergedDataset(split, transforms, kwargs['datasets'])
@@ -85,8 +88,17 @@ def get_dataloaders(params, data_transforms, sampler_labels=None, seed=42):
 
     #print("sampler Labels", sampler_labels)
     # num_samples=int(params.get('batch_size'))*10
-    train_sampler = ImbalancedDatasetSampler(train_data, labels=sampler_labels) if use_sampler else None
-    print('Instantiated training dataset for number of samples:', len(train_data))
+    use_only_1_class = params.get('use_only_1_class', False)
+    
+    if use_only_1_class:
+        train_sampler = None
+        
+        
+    else: 
+        train_sampler = ImbalancedDatasetSampler(train_data, labels=sampler_labels) if use_sampler else None
+        print('Instantiated training dataset for number of samples:', len(train_data))
+        
+    
 
     #print('TRAIN SAMPLER IS USED ?', train_sampler)
 

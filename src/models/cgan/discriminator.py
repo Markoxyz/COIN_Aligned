@@ -62,7 +62,7 @@ class ResBlocksDiscriminator(nn.Module):
             ]
         )
         self.sn_dense = snlinear.SNLinear(out_channels[-1], 1)
-        self.embd = nn.Embedding(n_classes, out_channels[-1])
+        #self.embd = nn.Embedding(n_classes, out_channels[-1])    ###################################################  cGAN -> GAN
         self.output_logits = output_logits
 
         self.initialize()
@@ -76,7 +76,7 @@ class ResBlocksDiscriminator(nn.Module):
 
     def forward(self, imgs, labels):
         outs = imgs
-        labels = labels.view(-1)
+        #labels = labels.view(-1)   ###################################################  cGAN -> GAN
         for b in self.blocks:
             outs = b(outs)
         # gsp = outs.view(*outs.shape[:2])  # (B, 1024, 1, 1)
@@ -87,12 +87,13 @@ class ResBlocksDiscriminator(nn.Module):
         sndense = self.sn_dense(gsp)  # (B, 1)
 
         # embed the labels (B, 1) -> (B, 1024)
-        embed = self.embd(labels)
+        # embed = self.embd(labels)    ###################################################  cGAN -> GAN
         # print('EMBED', embed.shape)
-        inner_prod = (gsp * embed).sum(dim=1, keepdims=True)  # (B, 1)
+        # inner_prod = (gsp * embed).sum(dim=1, keepdims=True)  # (B, 1)    ###################################################  cGAN -> GAN
         # print('INNER', inner_prod.shape)
 
-        final_add = sndense + inner_prod
+        # final_add = sndense + inner_prod    ###################################################  cGAN -> GAN
+        final_add = sn_dense
         return final_add if self.output_logits else F.logsigmoid(final_add).exp()
 
 

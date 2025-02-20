@@ -1,9 +1,10 @@
 import torch
 from torch.autograd import Variable
 
-from src.losses import CARL, kl_divergence, loss_hinge_dis, loss_hinge_gen, tv_loss
+from src.losses import CARL, kl_divergence, loss_hinge_dis, loss_hinge_gen, tv_loss, long_live_gan_adv_loss, long_live_gan_disc_loss
 from src.utils.grad_norm import grad_norm
 from src.models.cgan.counterfactual_cgan import posterior2bin, CounterfactualCGAN
+from src.models.cgan.loss_balancer import PastGradientLossBalancer
 
 FloatTensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if torch.cuda.is_available() else torch.LongTensor
@@ -14,6 +15,19 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
     def __init__(self, img_size, opt, *args, **kwargs) -> None:
         super().__init__(img_size, opt, *args, **kwargs)
         self.lambda_tv = opt.get('lambda_tv', 0.0)
+        self.loss_balancer = opt.get('loss_balancer',False)
+        if self.loss_balancer:
+            self.loss_balancer_obj = PastGradientLossBalancer(['g_adv_loss','g_kl','g_rec_loss','g_tv'],
+                                                              smoothing = 0.8,
+                                                              intensities = {'g_adv_loss':self.lambda_adv,
+                                                               'g_kl':self.lambda_kl,
+                                                               'g_rec_loss':self.lambda_rec,
+                                                               'g_tv':self.lambda_tv},
+                                                              initial_weights = {'g_adv_loss':self.lambda_adv,
+                                                               'g_kl':self.lambda_kl,
+                                                               'g_rec_loss':self.lambda_rec,
+                                                               'g_tv':self.lambda_tv})
+            print("USING LOSS BALANCER!")
     
     def posterior_prob(self, x):
         f_x, f_x_discrete, _, _ = super().posterior_prob(x)
@@ -28,7 +42,17 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         return f_x, f_x_discrete, f_x_desired, f_x_desired_discrete
 
     def reconstruction_loss(self, real_imgs, gen_imgs, masks, f_x_discrete, f_x_desired_discrete, z=None):
+        if not self.opt.get('only_cyclic_rec',False):
+            ifxc_fx = self.explanation_function(
+            x=gen_imgs,  # I_f(x, c)
+            f_x_discrete=f_x_desired_discrete, # f_x_desired_discrete is always zeros
+            )
+            return  self.l1(gen_imgs, ifxc_fx)
+        
+        
         forward_term = self.l1(real_imgs, gen_imgs)
+        
+        
         
         if not self.opt.get('cyclic_rec', False):
             return forward_term
@@ -49,13 +73,14 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         assert training and not validation or validation and not training
 
         # `real_imgs` and `gen_imgs` are in [-1, 1] range
-        imgs, labels, masks = batch['image'], batch['label'], batch['masks']
+        imgs, labels, masks, healthy_example = batch['image'], batch['label'], batch['masks'], batch['healthy_example']
         batch_size = imgs.shape[0]
 
         # Configure input
         real_imgs = Variable(imgs.type(FloatTensor))
         masks = Variable(masks.type(FloatTensor))
         labels = Variable(labels.type(LongTensor))
+        healthy_example = Variable(healthy_example.type(FloatTensor))
         # Adversarial ground truths
         valid = Variable(FloatTensor(batch_size, 1).fill_(1.0), requires_grad=False)
         fake = Variable(FloatTensor(batch_size, 1).fill_(0.0), requires_grad=False)
@@ -66,6 +91,7 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
             # 1) `inpaint`  (real_f_x_desired == 1)
             # 2) `identity` (real_f_x_desired == 0)
             real_f_x, real_f_x_discrete, real_f_x_desired, real_f_x_desired_discrete = self.posterior_prob(real_imgs)
+            
 
         # -----------------
         #  Train Generator
@@ -80,38 +106,111 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
 
         update_generator = global_step is not None and global_step % self.gen_update_freq == 0
         
+        ### Update generator without balancer.
         if update_generator or validation:
-            # data consistency loss for generator
-            dis_fake = self.disc(gen_imgs, real_f_x_desired_discrete)
-            if self.adv_loss == 'hinge':
-                g_adv_loss = self.lambda_adv * loss_hinge_gen(dis_fake)
-            else:
-                g_adv_loss = self.lambda_adv * self.adversarial_loss(dis_fake, valid)
-
-            # classifier consistency loss for generator
-            # f(I_f(x, c)) ≈ c
-            gen_f_x, _, _, _ = self.posterior_prob(gen_imgs)
-            # both y_pred and y_target are single-value probs for class k
-            g_kl = (
-                self.lambda_kl * kl_divergence(gen_f_x, real_f_x_desired)
-                if self.lambda_kl != 0 else torch.tensor(0.0, requires_grad=True)
-            )
-            # reconstruction loss for generator
-            g_rec_loss = (
-                self.lambda_rec * self.reconstruction_loss(real_imgs, gen_imgs, masks, real_f_x_discrete, real_f_x_desired_discrete, z=z)
-                if self.lambda_rec != 0 else torch.tensor(0.0, requires_grad=True)
-            )
-            if self.lambda_minc != 0:
-                g_minc_loss = self.lambda_minc * self.l1(real_imgs, gen_imgs)
-            else:
-                g_minc_loss = torch.tensor(0.0, requires_grad=True)
             
-            if self.lambda_tv != 0:
-                g_tv = self.lambda_tv * tv_loss(torch.abs(real_imgs.add(1).div(2) - gen_imgs.add(1).div(2)).mul(255))
+            if self.loss_balancer:
+                
+                ########## data consistency loss for generator
+                dis_fake = self.disc(gen_imgs, real_f_x_desired_discrete)
+                dis_real = self.disc(healthy_example, real_f_x_desired_discrete)
+                if self.adv_loss == 'hinge':
+                    g_adv_loss = loss_hinge_gen(dis_fake)
+                if self.adv_loss == 'long_live_gan':
+                    g_adv_loss = long_live_gan_adv_loss(dis_real, dis_fake)
+                else:
+                    g_adv_loss = self.adversarial_loss(dis_fake, valid)
+                ##################
+                
+                
+                ######### Classifier loss
+                gen_f_x, _, _, _ = self.posterior_prob(gen_imgs)
+                # both y_pred and y_target are single-value probs for class k
+                g_kl = (
+                    kl_divergence(gen_f_x, real_f_x_desired)
+                    if self.lambda_kl != 0 else torch.tensor(0.0, requires_grad=True)
+                )
+                ###############
+                
+                ########### Reconstruction Loss
+                # reconstruction loss for generator
+                g_rec_loss = (
+                    self.reconstruction_loss(real_imgs, gen_imgs, masks, real_f_x_discrete, real_f_x_desired_discrete, z=z)
+                    if self.lambda_rec != 0 else torch.tensor(0.0, requires_grad=True)
+                )
+                ##################
+                
+                ############ 
+                if self.lambda_minc != 0:
+                    g_minc_loss =  self.l1(real_imgs, gen_imgs)
+                else:
+                    g_minc_loss = torch.tensor(0.0, requires_grad=True)
+                ######################
+                
+                ###########
+                if self.lambda_tv != 0:
+                    g_tv = tv_loss(torch.abs(real_imgs.add(1).div(2) - gen_imgs.add(1).div(2)).mul(255))
+                else:
+                    g_tv = torch.tensor(0.0, requires_grad=True)
+                ##################
+                
+                loss_dict = {'g_adv_loss':g_adv_loss,
+                            'g_kl':g_kl,
+                            'g_rec_loss':g_rec_loss,
+                            'g_tv':g_tv}
+
+                loss_dict_copy = {'g_adv_loss':g_adv_loss.clone().detach(),
+                            'g_kl':g_kl.clone().detach(),
+                            'g_rec_loss':g_rec_loss.clone().detach(),
+                            'g_tv':g_tv.clone().detach()}
+                
+                balanced_weights = self.loss_balancer_obj.get_loss_weights(loss_dict_copy)
+                
+                
+                # total generator loss
+                g_loss = sum(balanced_weights[loss_name] * loss_value for loss_name, loss_value in loss_dict.items())
+                
+                self.gen_loss_logs.update({f'{loss_name}_weight': weight for loss_name, weight in balanced_weights.items()})
+                
             else:
-                g_tv = torch.tensor(0.0, requires_grad=True)
-            # total generator loss
-            g_loss = g_adv_loss + g_kl + g_rec_loss + g_minc_loss + g_tv
+                
+                # data consistency loss for generator
+                dis_fake = self.disc(gen_imgs, real_f_x_desired_discrete)
+                dis_real = self.disc(healthy_example, real_f_x_desired_discrete)
+                if self.adv_loss == 'hinge':
+                    g_adv_loss = self.lambda_adv * loss_hinge_gen(dis_fake)
+                    
+                if self.adv_loss == 'long_live_gan':
+                    g_adv_loss = self.lambda_adv * long_live_gan_adv_loss(dis_real, dis_fake)
+                    
+                else:
+                    g_adv_loss = self.lambda_adv * self.adversarial_loss(dis_fake, valid)
+
+                # classifier consistency loss for generator
+                # f(I_f(x, c)) ≈ c
+                gen_f_x, _, _, _ = self.posterior_prob(gen_imgs)
+                # both y_pred and y_target are single-value probs for class k
+                g_kl = (
+                    self.lambda_kl * kl_divergence(gen_f_x, real_f_x_desired)
+                    if self.lambda_kl != 0 else torch.tensor(0.0, requires_grad=True)
+                )
+                # reconstruction loss for generator
+                g_rec_loss = (
+                    self.lambda_rec * self.reconstruction_loss(real_imgs, gen_imgs, masks, real_f_x_discrete, real_f_x_desired_discrete, z=z)
+                    if self.lambda_rec != 0 else torch.tensor(0.0, requires_grad=True)
+                )
+                if self.lambda_minc != 0:
+                    g_minc_loss = self.lambda_minc * self.l1(real_imgs, gen_imgs)
+                else:
+                    g_minc_loss = torch.tensor(0.0, requires_grad=True)
+                
+                if self.lambda_tv != 0:
+                    g_tv = self.lambda_tv * tv_loss(torch.abs(real_imgs.add(1).div(2) - gen_imgs.add(1).div(2)).mul(255))
+                else:
+                    g_tv = torch.tensor(0.0, requires_grad=True)
+                # total generator loss
+                g_loss = g_adv_loss + g_kl + g_rec_loss + g_minc_loss + g_tv
+                
 
             # update generator
             if update_generator:
@@ -128,24 +227,38 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
             self.gen_loss_logs['g_tv'] = g_tv.item()
             self.gen_loss_logs['g_loss'] = g_loss.item()
 
+
+
+
         # ---------------------
         #  Train Discriminator
         # ---------------------
         if training:
             self.optimizer_D.zero_grad()
 
-        dis_real = self.disc(real_imgs, real_f_x_discrete) # changed from real_f_x_desired_discrete to real_f_x_discrete
-        dis_fake = self.disc(gen_imgs.detach(), real_f_x_desired_discrete)
+        dis_real = self.disc(healthy_example, real_f_x_desired_discrete) # changed from real_f_x_desired_discrete to real_f_x_discrete
+        dis_fake = self.disc(gen_imgs, real_f_x_desired_discrete)
 
+        healthy_example.requires_grad_(True)
+        gen_imgs.requires_grad_(True)
+        
         # data consistency loss for discriminator (real and fake images)
         if self.adv_loss == 'hinge':
             d_real_loss, d_fake_loss = loss_hinge_dis(dis_fake, dis_real)
+        
+        if self.adv_loss == 'long_live_gan':
+            DiscriminatorLoss = long_live_gan_disc_loss(dis_real, dis_fake, healthy_example, gen_imgs, 1.0)
+            
         else:
             d_real_loss = self.adversarial_loss(dis_real, valid)
             d_fake_loss = self.adversarial_loss(dis_fake, fake)
         
         # total discriminator loss
-        d_loss = (d_real_loss + d_fake_loss) / 2
+        if self.adv_loss == 'long_live_gan':
+            
+            d_loss = DiscriminatorLoss
+        else:
+            d_loss = (d_real_loss + d_fake_loss) / 2
 
         if training:
             self.fabric.backward(d_loss)
@@ -160,5 +273,6 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         outs = {
             'loss': {**self.gen_loss_logs, **self.disc_loss_logs},
             'gen_imgs': gen_imgs,
+            'healthy_examples': healthy_example,
         }
         return outs

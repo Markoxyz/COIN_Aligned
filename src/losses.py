@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 
 
 def _CARL(x:torch.Tensor, x_prime:torch.Tensor, masks:torch.Tensor, eps:float=1e-8) -> torch.Tensor:
@@ -74,3 +75,29 @@ def tv_loss(img):
     w_variance = torch.mean(torch.pow(img[:, :, :, :-1] - img[:, :, :, 1:], 2), dim=(1, 2, 3))
     h_variance = torch.mean(torch.pow(img[:, :, :-1, :] - img[:, :, 1:, :], 2), dim=(1, 2, 3))
     return torch.mean(h_variance + w_variance)
+
+
+
+def long_live_gan_adv_loss(dis_real, dis_fake):
+    
+    RelativisticLogits = dis_fake - dis_real
+    AdversarialLoss = nn.functional.softplus(-RelativisticLogits)
+    return AdversarialLoss.mean()
+
+def ZeroCenteredGradientPenalty(Samples, Critics):
+    Samples.requires_grad_(True)  # Ensure Samples requires grad
+    Gradient, = torch.autograd.grad(outputs=Critics.sum(), inputs=Samples, create_graph=True)
+    if Gradient is None:
+        raise RuntimeError("Gradient computation failed. Ensure that Critics depend on Samples.")
+    return Gradient.square().sum([1, 2, 3])
+
+def long_live_gan_disc_loss(dis_real, dis_fake, real_imgs, fake_imgs, Gamma):
+    
+    R1Penalty = ZeroCenteredGradientPenalty(real_imgs, dis_real)
+    R2Penalty = ZeroCenteredGradientPenalty(fake_imgs, dis_fake)
+    
+    RelativisticLogits = dis_real - dis_fake
+    AdversarialLoss = nn.functional.softplus(-RelativisticLogits)
+    
+    DiscriminatorLoss = AdversarialLoss + (Gamma / 2) * (R1Penalty + R2Penalty)
+    return DiscriminatorLoss.mean()

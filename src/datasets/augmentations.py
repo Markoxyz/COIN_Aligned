@@ -8,6 +8,7 @@ from batchgenerators.transforms.noise_transforms import GaussianBlurTransform, G
 from batchgenerators.transforms.resample_transforms import SimulateLowResolutionTransform
 from batchgenerators.transforms.spatial_transforms import MirrorTransform, SpatialTransform
 from batchgenerators.transforms.utility_transforms import NumpyToTensor, RemoveLabelTransform, RenameTransform
+from src.datasets.black_hole_generator import Black_hole_aug
 
 
 def get_transforms(opt):
@@ -29,12 +30,16 @@ def get_transforms(opt):
         std = [0.5]
 
     train_ops = []
+    if 'black_holes' in opt.augs:
+        train_ops.append(Black_hole_aug())
+
     if 'hflip' in opt.augs:
         train_ops.append(albu.HorizontalFlip(p=0.5))
     if 'vflip' in opt.augs:
         train_ops.append(albu.VerticalFlip(p=0.1))
     if 'shift_scale_rotate' in opt.augs:
         train_ops.append(albu.ShiftScaleRotate(scale_limit=0.1, rotate_limit=10, shift_limit=0.07, p=0.5, border_mode=cv2.BORDER_CONSTANT, value=0))
+        
 
     data_transforms = {
         'train': albu.Compose(
