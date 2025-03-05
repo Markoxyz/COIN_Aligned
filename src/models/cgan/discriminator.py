@@ -62,7 +62,7 @@ class ResBlocksDiscriminator(nn.Module):
             ]
         )
         self.sn_dense = snlinear.SNLinear(out_channels[-1], 1)
-        #self.embd = nn.Embedding(n_classes, out_channels[-1])    ###################################################  cGAN -> GAN
+        self.embd = nn.Embedding(n_classes, out_channels[-1]) 
         self.output_logits = output_logits
 
         self.initialize()
@@ -74,9 +74,10 @@ class ResBlocksDiscriminator(nn.Module):
         nn.init.xavier_uniform_(self.sn_dense.weight, gain)
         nn.init.xavier_uniform_(self.embd.weight, gain)
 
-    def forward(self, imgs, labels):
+    def forward(self, imgs, labels=None):
         outs = imgs
-        #labels = labels.view(-1)   ###################################################  cGAN -> GAN
+        #labels = labels if labels is not None else torch.zeros(imgs.size(0), dtype=torch.long, device=imgs.device) ########### to use r1 and r2 losses.
+        #labels = labels.view(-1)                                                                                   ########### to use r1 and r2 losses.
         for b in self.blocks:
             outs = b(outs)
         # gsp = outs.view(*outs.shape[:2])  # (B, 1024, 1, 1)
@@ -87,13 +88,18 @@ class ResBlocksDiscriminator(nn.Module):
         sndense = self.sn_dense(gsp)  # (B, 1)
 
         # embed the labels (B, 1) -> (B, 1024)
-        # embed = self.embd(labels)    ###################################################  cGAN -> GAN
+        
+        #embed = self.embd(labels)                                                                                 ########### to use r1 and r2 losses.
+        
         # print('EMBED', embed.shape)
-        # inner_prod = (gsp * embed).sum(dim=1, keepdims=True)  # (B, 1)    ###################################################  cGAN -> GAN
+        
+        #inner_prod = (gsp * embed).sum(dim=1, keepdims=True)  # (B, 1)                                            ########### to use r1 and r2 losses.
+        
+        
         # print('INNER', inner_prod.shape)
 
-        # final_add = sndense + inner_prod    ###################################################  cGAN -> GAN
-        final_add = sn_dense
+        #final_add = sndense + inner_prod                                                                         ########### to use r1 and r2 losses.
+        final_add = sndense                                                                                       ########### to use r1 and r2 losses.
         return final_add if self.output_logits else F.logsigmoid(final_add).exp()
 
 

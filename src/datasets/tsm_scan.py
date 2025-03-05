@@ -207,6 +207,16 @@ class CTScan(torch.utils.data.Dataset):
             print(f'{self} has no slices for classes: {filter_classes}')
         return indices
 
+    def get_relative_indices(self):
+        if self.slice_indices is None:
+            self.slice_indices = self.get_slice_indices(self.sampling_class)
+
+        relative_indices = np.zeros(len(self.slice_indices), dtype=np.int32)
+        for i, slice_index in enumerate(self.slice_indices):
+            relative_indices[i] = slice_index - self.slice_indices[0]
+
+        return relative_indices
+
     def _get_slicer(self, index: int) -> np.ndarray:
         if self.slicing_dim == 0:
             return np.s_[index]

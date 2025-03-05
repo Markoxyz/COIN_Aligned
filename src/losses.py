@@ -84,20 +84,33 @@ def long_live_gan_adv_loss(dis_real, dis_fake):
     AdversarialLoss = nn.functional.softplus(-RelativisticLogits)
     return AdversarialLoss.mean()
 
+
 def ZeroCenteredGradientPenalty(Samples, Critics):
-    Samples.requires_grad_(True)  # Ensure Samples requires grad
-    Gradient, = torch.autograd.grad(outputs=Critics.sum(), inputs=Samples, create_graph=True)
+    # Make sure samples require gradients
+    if not Samples.requires_grad:
+        Samples.requires_grad_()
+    
+    # Use create_graph=True for computing higher-order gradients later
+    # retain_graph=True to keep the graph for future backward passes
+    Gradient, = torch.autograd.grad(
+        outputs=Critics.sum(), 
+        inputs=Samples, 
+        create_graph=True, 
+        retain_graph=True
+    )
+    
     if Gradient is None:
-        raise RuntimeError("Gradient computation failed. Ensure that Critics depend on Samples.")
+        # Return zero tensor with proper shape if gradient is None
+        return torch.zeros(Samples.size(0), device=Samples.device)
+        
     return Gradient.square().sum([1, 2, 3])
 
+
 def long_live_gan_disc_loss(dis_real, dis_fake, real_imgs, fake_imgs, Gamma):
-    
     R1Penalty = ZeroCenteredGradientPenalty(real_imgs, dis_real)
     R2Penalty = ZeroCenteredGradientPenalty(fake_imgs, dis_fake)
-    
     RelativisticLogits = dis_real - dis_fake
     AdversarialLoss = nn.functional.softplus(-RelativisticLogits)
     
     DiscriminatorLoss = AdversarialLoss + (Gamma / 2) * (R1Penalty + R2Penalty)
-    return DiscriminatorLoss.mean()
+    return DiscriminatorLoss.mean(), R1Penalty.mean(), R2Penalty.mean()

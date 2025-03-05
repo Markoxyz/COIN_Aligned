@@ -1,5 +1,6 @@
 import torch
 from torch.autograd import Variable
+import torch.nn as nn
 
 from src.losses import CARL, kl_divergence, loss_hinge_dis, loss_hinge_gen, tv_loss, long_live_gan_adv_loss, long_live_gan_disc_loss
 from src.utils.grad_norm import grad_norm
@@ -16,6 +17,7 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         super().__init__(img_size, opt, *args, **kwargs)
         self.lambda_tv = opt.get('lambda_tv', 0.0)
         self.loss_balancer = opt.get('loss_balancer',False)
+        self.adv_gamma = opt.get('adv_gamma', 1.0)
         if self.loss_balancer:
             self.loss_balancer_obj = PastGradientLossBalancer(['g_adv_loss','g_kl','g_rec_loss','g_tv'],
                                                               smoothing = 0.8,
@@ -235,39 +237,58 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         # ---------------------
         if training:
             self.optimizer_D.zero_grad()
-
-        dis_real = self.disc(healthy_example, real_f_x_desired_discrete) # changed from real_f_x_desired_discrete to real_f_x_discrete
-        dis_fake = self.disc(gen_imgs, real_f_x_desired_discrete)
-
-        healthy_example.requires_grad_(True)
-        gen_imgs.requires_grad_(True)
+            
+        healthy_example.requires_grad_() 
         
+        gen_imgs_detached = gen_imgs.detach()
+        gen_imgs_detached.requires_grad_() 
+            
+        
+        # Compute discriminator outputs
+        dis_real = self.disc(healthy_example)
+        dis_fake = self.disc(gen_imgs_detached)
+
         # data consistency loss for discriminator (real and fake images)
         if self.adv_loss == 'hinge':
             d_real_loss, d_fake_loss = loss_hinge_dis(dis_fake, dis_real)
-        
-        if self.adv_loss == 'long_live_gan':
-            DiscriminatorLoss = long_live_gan_disc_loss(dis_real, dis_fake, healthy_example, gen_imgs, 1.0)
+            d_loss = (d_real_loss + d_fake_loss) / 2
             
+        elif self.adv_loss == 'long_live_gan' and training:
+            # Use detached version with gradients enabled
+            d_loss, R1Penalty, R2Penalty = long_live_gan_disc_loss(dis_real, dis_fake, healthy_example, gen_imgs_detached, self.adv_gamma)
+        
+        elif self.adv_loss == 'long_live_gan' and not training:
+            RelativisticLogits = dis_real - dis_fake
+            AdversarialLoss = nn.functional.softplus(-RelativisticLogits)
+                
+            d_loss = AdversarialLoss.mean() 
+        
         else:
             d_real_loss = self.adversarial_loss(dis_real, valid)
             d_fake_loss = self.adversarial_loss(dis_fake, fake)
-        
-        # total discriminator loss
-        if self.adv_loss == 'long_live_gan':
-            
-            d_loss = DiscriminatorLoss
-        else:
             d_loss = (d_real_loss + d_fake_loss) / 2
+        
+
 
         if training:
+            # Perform backward pass
             self.fabric.backward(d_loss)
+            
             if compute_norms:
                 self.norms['D'] = grad_norm(self.disc)
             self.optimizer_D.step()
-
-        self.disc_loss_logs['d_real_loss'] = d_real_loss.item()
-        self.disc_loss_logs['d_fake_loss'] = d_fake_loss.item()
+            
+        # Store losses for logging
+        if self.adv_loss == 'long_live_gan':
+            self.disc_loss_logs['d_real_loss'] = 0.0  # Not separately computed for long_live_gan
+            self.disc_loss_logs['d_fake_loss'] = 0.0  # Not separately computed for long_live_gan
+            if 'R1Penalty' in locals():
+                self.disc_loss_logs['R1Penalty'] = R1Penalty
+                self.disc_loss_logs['R2Penalty'] = R2Penalty
+        else:
+            self.disc_loss_logs['d_real_loss'] = d_real_loss.item()
+            self.disc_loss_logs['d_fake_loss'] = d_fake_loss.item()
+            
         self.disc_loss_logs['d_loss'] = d_loss.item()
 
         outs = {
