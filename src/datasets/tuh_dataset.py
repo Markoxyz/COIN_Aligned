@@ -86,6 +86,7 @@ class TUHDataset(torch.utils.data.Dataset):
             self.scans.append(CTScan(sp, labels_dir / sname, **scan_params))
 
         # Remove elements from self.scans that have length 0
+        
 
         self.scans_dataset = ConcatDataset(self.scans)
         self.classes = self.scans[0].classes
@@ -95,7 +96,7 @@ class TUHDataset(torch.utils.data.Dataset):
         lbs = list(chain.from_iterable(scan.get_sampling_labels() for scan in self.scans))
         print(f'[TUH dataset] Number of slices with positive sampling label:', sum(lbs))
         return lbs
-
+    
     def __len__(self):
         return len(self.scans_dataset)
 

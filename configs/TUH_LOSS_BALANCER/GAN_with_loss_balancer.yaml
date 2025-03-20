@@ -1,5 +1,5 @@
 task_name: counterfactual_inpainting
-logging_dir: /scratch/project_465001111/coin_training_logs/GAN/tuh-full-ctnorm
+logging_dir: /scratch/project_465001111/coin_training_logs/GAN/DEBUG
 
 seed: 777
 sample_interval: 50
@@ -7,7 +7,7 @@ sample_interval: 50
 n_epochs: 31
 #epoch_steps: 10
 
-experiment_name: V6_cyclic_true_TUH_Paired
+experiment_name: DEBUG
 checkpoint_freq: 1
 eval_counter_freq: 5
 cf_gt_seg_mask_idx: 2

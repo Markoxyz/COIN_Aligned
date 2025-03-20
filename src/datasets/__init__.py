@@ -16,6 +16,7 @@ from src.datasets.tuh_dataset import TUHDataset
 from src.datasets.TCGA_dataset import TCGADataset
 from src.utils.generic_utils import seed_everything
 from src.datasets.tuh_dataset_paired import TUHDataset_pairs
+from src.datasets.black_squares_dataset import BlackSquaresDataset
 
 
 def build_dataset(kind: str, root_dir: Path, split: str, transforms:albu.Compose, **kwargs):
@@ -34,6 +35,8 @@ def build_dataset(kind: str, root_dir: Path, split: str, transforms:albu.Compose
         return TUHDataset(root_dir, split, transforms=transforms, **scan_params, **kwargs)
     elif kind == 'tuh_pairs':
         return TUHDataset_pairs(root_dir, split, transforms=transforms, **scan_params, **kwargs)
+    elif kind == 'squares':
+        return BlackSquaresDataset()
     elif kind == 'merged':
         logging.info(f'HERE ARE THE DATASET CONFIGS: {kwargs["datasets"]}')
         return MergedDataset(split, transforms, kwargs['datasets'])

@@ -1,16 +1,16 @@
 task_name: counterfactual_inpainting
-logging_dir: /scratch/project_465001111/coin_training_logs/GAN/V8_GAMMA_VARIATION
-
+logging_dir: /scratch/project_465001111/coin_training_logs/GAN/V12_TANH_V2_no_TV
 seed: 777
 sample_interval: 50
 
-n_epochs: 81
+n_epochs: 51
 #epoch_steps: 10
 
-experiment_name: V8_clf_off_gamma_100
+experiment_name: V12_TANH_V2_no_TV
 checkpoint_freq: 1
 eval_counter_freq: 5
 cf_gt_seg_mask_idx: 2
+apply_tanh_to_non_gen_imgs_in_eval: True
 log_visualizations: false
 
 compute_norms: False
@@ -63,14 +63,15 @@ model:
   loss_balancer: False
   lambda_adv: 1.0
   adv_gamma: 100.0
-  lambda_kl: 0.0
-  lambda_rec: 1.0
-  lambda_tv: 0.00005
+  lambda_kl: 1.0
+  lambda_rec: 0.25
+  reconstruction_dilation: True
+  dilation_kernel_size: 5
+  lambda_tv: 0.0
   lambda_minc: 0.0
+  apply_tanh_to_non_gen_imgs: True
   # precision: 16-mixed
   precision: '32'
-
-  cyclic_rec: True
   
   # optimizers' parameters
   lr: 0.0002
@@ -91,6 +92,7 @@ model:
     use_snconv: false
     # indices are specifided w.r.t bottleneck (index=0) and upwards
     skip_conn: [1, 2, 3, 4]
+    ptb_fuse_type: skip_add_shifted_normalize_tanh
 
   disc_params:
     downsample_scales: [2, 2, 2, 2, 2]

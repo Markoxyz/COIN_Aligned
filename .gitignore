@@ -198,3 +198,7 @@ data
 configs/tuh_test_configs_marko/splits/test_scans.csv
 configs/tuh_test_configs_marko/splits/train_scans.csv
 core
+configs/TUH_LOSS_BALANCER/splits_dima3d/train_scans.csv
+configs/TUH_LOSS_BALANCER/GAN_with_loss_balancer.yaml
+configs/TUH_LOSS_BALANCER/splits_dima3d/test_scans.csv
+tmp

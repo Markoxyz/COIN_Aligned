@@ -8,6 +8,9 @@ from torchvision.utils import save_image
 from src.models.cgan.counterfactual_inpainting_cgan import CounterfactualInpaintingCGAN
 from src.visualizations import confmat_vis_img
 from .counterfactual import CounterfactualTrainer
+import os
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def largest_cc(segmentation):
@@ -16,6 +19,87 @@ def largest_cc(segmentation):
         return segmentation
     # assume at least 1 CC
     return (labels == np.argmax(np.bincount(labels.flat)[1:])+1).astype(np.uint8)
+
+
+def save_PoW_boxplot(PoW_values, save_folder="", filename="PoW_boxplot.png"):
+    
+    
+    if not PoW_values:
+        raise ValueError("iou_values list is empty. Provide valid PoW values.")
+
+    # Ensure the save directory exists
+    os.makedirs(save_folder, exist_ok=True)
+
+    # Compute the average IoU
+    avg = np.mean(PoW_values)
+
+    # Create and save the boxplot
+    plt.figure(figsize=(6, 4))
+    plt.boxplot(PoW_values, vert=True, patch_artist=True, boxprops=dict(facecolor="lightblue"))
+    plt.title(f"PoW Boxplot (Avg: {avg:.3f})")  # Display avg IoU in the title
+    plt.ylabel("PoW Score")
+
+    # Save the boxplot
+    save_path = os.path.join(save_folder, filename)
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close()  # Close the figure to free memory
+
+    # Create a subfolder for numpy arrays
+    numpy_folder = os.path.join(save_folder, "numpy_arrays")
+    os.makedirs(numpy_folder, exist_ok=True)
+
+    # Save PoW values as a .npy file
+    npy_filename = os.path.splitext(filename)[0] + ".npy"  # Change file extension to .npy
+    npy_path = os.path.join(numpy_folder, npy_filename)
+    np.save(npy_path, np.array(PoW_values))
+    
+    return avg
+
+
+def save_iou_boxplot(iou_values, save_folder="", filename="iou_boxplot.png"):
+    """
+    Creates and saves a boxplot for IoU values, saves the array as .npy, and returns the average IoU.
+
+    Parameters:
+    - iou_values (list): A list of IoU values.
+    - save_folder (str): Path to the folder where the plot should be saved.
+    - filename (str): Name of the output image file.
+
+    Returns:
+    - tuple: (average IoU, path to saved boxplot, path to saved .npy file)
+    """
+    if not iou_values:
+        raise ValueError("iou_values list is empty. Provide valid IoU values.")
+
+    # Ensure the save directory exists
+    os.makedirs(save_folder, exist_ok=True)
+
+    # Compute the average IoU
+    avg_iou = np.mean(iou_values)
+
+    # Create and save the boxplot
+    plt.figure(figsize=(6, 4))
+    plt.boxplot(iou_values, vert=True, patch_artist=True, boxprops=dict(facecolor="lightblue"))
+    plt.title(f"IoU Boxplot (Avg: {avg_iou:.3f})")  # Display avg IoU in the title
+    plt.ylabel("IoU Score")
+
+    # Save the boxplot
+    save_path = os.path.join(save_folder, filename)
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close()  # Close the figure to free memory
+
+    # Create a subfolder for numpy arrays
+    numpy_folder = os.path.join(save_folder, "numpy_arrays")
+    os.makedirs(numpy_folder, exist_ok=True)
+
+    # Save IoU values as a .npy file
+    npy_filename = os.path.splitext(filename)[0] + ".npy"  # Change file extension to .npy
+    npy_path = os.path.join(numpy_folder, npy_filename)
+    np.save(npy_path, np.array(iou_values))
+    
+    return avg_iou
+
+
 
 
 class CounterfactualInpaintingTrainer(CounterfactualTrainer):
@@ -27,10 +111,15 @@ class CounterfactualInpaintingTrainer(CounterfactualTrainer):
         classes = []
         cv_y_true, cv_y_pred = [], []
         posterior_true, posterior_pred = [], []
+        iou_values = []
+        perc_of_error = []
 
         # number of samples where classifier predicted > 0.8 and the gt label is 1 (abnormal)
         pred_num_abnormal_samples = 0
         true_num_abnormal_samples = 0
+        
+        images_folder = os.path.join(cf_dir, "images")
+        os.makedirs(images_folder, exist_ok=True)
         for i, batch in tqdm(enumerate(loader), desc='Validating counterfactuals', leave=False, total=len(loader)):
             # Evaluate Counterfactual Validity Metric
             real_imgs = batch['image'].cuda(non_blocking=True)
@@ -49,6 +138,9 @@ class CounterfactualInpaintingTrainer(CounterfactualTrainer):
 
             # computes I_f(x, c)
             gen_cf_c = self.model.explanation_function(real_imgs, real_f_x_desired_discrete)
+            
+            if self.apply_tanh_to_non_gen_imgs:
+                real_imgs = torch.tanh(real_imgs)
 
             # computes f(x_c)
             gen_f_x, gen_f_x_discrete, _, _ = self.model.posterior_prob(gen_cf_c)
@@ -59,6 +151,7 @@ class CounterfactualInpaintingTrainer(CounterfactualTrainer):
             # denorm values from [-1; 1] to [0, 1] range, B x 1 x H x W
             real_imgs.add_(1).div_(2)
             gen_cf_c.add_(1).div_(2)
+            
 
             # compute difference maps, threshold and compute IoU
             # |x - x_c|
@@ -69,7 +162,25 @@ class CounterfactualInpaintingTrainer(CounterfactualTrainer):
                 if postprocess_morph:
                     diff_seg[abnormal_mask] = self.postprocess_morph(diff_seg[abnormal_mask])
                 pred_num_abnormal_samples += abnormal_mask.sum()
-                self.val_iou_xc.update(diff_seg[abnormal_mask].squeeze(1), cf_gt_masks[abnormal_mask])
+                
+                # Get tensors for abnormal images only
+                abnormal_diff_seg = diff_seg[abnormal_mask].squeeze(1)  # N x H x W
+                abnormal_gt_masks = cf_gt_masks[abnormal_mask]          # N x H x W
+                
+                # Calculate IoU for each image in parallel
+                intersection = (abnormal_diff_seg * abnormal_gt_masks).sum(dim=[1, 2])
+                union = abnormal_diff_seg.sum(dim=[1, 2]) + abnormal_gt_masks.sum(dim=[1, 2]) - intersection
+                batch_ious = (intersection / union.clamp(min=1e-8)).cpu().tolist()
+                iou_values.extend(batch_ious)
+                
+                # Calculate PoW for each image in parallel
+                wrong_pixels = (abnormal_diff_seg != abnormal_gt_masks).sum(dim=[1, 2]).float()
+                total_pixels = abnormal_diff_seg[0].numel()  # Same for all images
+                batch_pow = (wrong_pixels / total_pixels).cpu().tolist()
+                perc_of_error.extend(batch_pow)
+                
+                # Also update the metric for overall calculation if needed
+                self.val_iou_xc.update(abnormal_diff_seg, abnormal_gt_masks)
 
             vis_confmat = confmat_vis_img(cf_gt_masks[0].unsqueeze(0).unsqueeze(0), diff_seg[0].unsqueeze(0), normalized=True)[0]
             vis = torch.stack((
@@ -81,10 +192,29 @@ class CounterfactualInpaintingTrainer(CounterfactualTrainer):
             vis[2] = vis_confmat
             vis = vis.permute(0, 3, 1, 2)
             
+            #if phase == 'val':
+                        
+                # save all diff_seg as images
+            #    for j in range(B):
+            #        if i * B + j > 357:
+            #            continue
+            #        diff_seg_path = cf_dir/ "diff" / (f'epoch_%d_diff_seg_%d_label_%d.png' % (
+            #            self.current_epoch, i * B + j, 1)
+            #        )
+            #        save_image(diff_seg[j].unsqueeze(0).float(), diff_seg_path, normalize=True)
+            #        
+            #        diff_seg_path = cf_dir/ "korval" / (f'epoch_%d_diff_seg_%d_label_%d.png' % (
+            #            self.current_epoch, i * B + j, 1)
+            #        )
+            #        save_image(real_imgs[j].unsqueeze(0).float(), diff_seg_path, normalize=True)
+                    
+                        
+            
             # save first example for visualization
-            vis_path = cf_dir / (f'epoch_%d_counterfactual_%d_label_%d_true_%d_pred_%d.png' % (
+            
+            vis_path = os.path.join(images_folder ,(f'epoch_%d_counterfactual_%d_label_%d_true_%d_pred_%d.png' % (
                 self.current_epoch, i, labels[0], real_f_x_desired_discrete[0][0], gen_f_x_discrete[0][0])
-            )
+            ))
             save_image(vis.data, vis_path, nrow=3, normalize=False) # value_range=(-1, 1))
 
             if not skip_fid:
@@ -98,6 +228,8 @@ class CounterfactualInpaintingTrainer(CounterfactualTrainer):
                 gen_cf_c = nn.functional.interpolate(gen_cf_c, size=(299, 299), mode='bilinear', align_corners=False)
                 gen_cf_c = gen_cf_c.repeat_interleave(repeats=3, dim=1)
                 self.val_fid.update(gen_cf_c, real=False)
+                
+        
 
         num_samples = len(posterior_true)
         self.logger.info(f'Finished evaluating counterfactual results for epoch: {self.current_epoch}')
@@ -114,9 +246,17 @@ class CounterfactualInpaintingTrainer(CounterfactualTrainer):
         cv_score = np.mean(np.abs(posterior_true - posterior_pred)[pos_true_mask] > tau)
         self.logger.info(f'CV(X, Xc) = {cv_score:.3f} (τ={tau}, num_samples={pos_true_mask.sum()})')
 
-        cf_iou_xc = self.val_iou_xc.compute().item()
+
+        # CALCULATE IoU
+
+        cf_iou_xc = save_iou_boxplot(iou_values, cf_dir / 'Metrics_IoU', f'IOU_epoch_{self.current_epoch}.png')     
         self.val_iou_xc.reset()
         self.logger.info(f'IoU(S, Sc) = {cf_iou_xc:.3f} (cf_thresh={self.cf_threshold}, num_samples={pred_num_abnormal_samples}, mask={self.cf_gt_seg_mask_idx})')
+        
+        # Calculate PoW
+        
+        cf_PoW = save_PoW_boxplot(perc_of_error , cf_dir / 'Metrics_PoW', f'PoW_epoch_{self.current_epoch}.png')
+        self.logger.info(f'PoW(S, Sc) = {cf_PoW:.3f}')
 
         fid_score = None
         if not skip_fid:

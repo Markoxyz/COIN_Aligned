@@ -167,6 +167,12 @@ class ResBlocksGenerator(nn.Module):
             if self.ptb_fuse_type == 'skip_add_tanh':
                 outs = outs + x
                 return self.tanh(outs)
+            elif self.ptb_fuse_type == 'skip_add_shifted_normalize_tanh':
+                outs = self.tanh(outs)
+                outs = outs - 0.6
+                outs = outs / 1.2
+                outs = outs + x
+                return self.tanh(outs)
             elif self.ptb_fuse_type == 'skip_add_l2_tanh':
                 norms = torch.norm(outs, dim=(2, 3), keepdim=True)
                 outs = outs / norms.clamp(min=1.0)

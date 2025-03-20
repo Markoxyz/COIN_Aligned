@@ -29,6 +29,9 @@ class CounterfactualTrainer(BaseTrainer):
         
         self.cf_vis_dir_val = self.logging_dir / 'counterfactuals/val'
         self.cf_vis_dir_val.mkdir(exist_ok=True)
+        
+        self.apply_tanh_to_non_gen_imgs = opt.get('apply_tanh_to_non_gen_imgs_in_eval', False)
+        
 
         self.compute_norms = self.opt.get('compute_norms', False)
         # 64, 192, 768, 2048

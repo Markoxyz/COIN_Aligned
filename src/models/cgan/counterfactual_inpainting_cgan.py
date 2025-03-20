@@ -1,6 +1,7 @@
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
+import torch.nn.functional as F
 
 from src.losses import CARL, kl_divergence, loss_hinge_dis, loss_hinge_gen, tv_loss, long_live_gan_adv_loss, long_live_gan_disc_loss
 from src.utils.grad_norm import grad_norm
@@ -18,6 +19,9 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         self.lambda_tv = opt.get('lambda_tv', 0.0)
         self.loss_balancer = opt.get('loss_balancer',False)
         self.adv_gamma = opt.get('adv_gamma', 1.0)
+        self.apply_tanh_to_non_gen_imgs = opt.get('apply_tanh_to_non_gen_imgs', False)
+        self.dilation_kernel_size = opt.get('dilation_kernel_size', 2)
+        print(f"Kernel based recon loss set to {opt.get('reconstruction_dilation', False)} used for this is: {self.dilation_kernel_size}")
         if self.loss_balancer:
             self.loss_balancer_obj = PastGradientLossBalancer(['g_adv_loss','g_kl','g_rec_loss','g_tv'],
                                                               smoothing = 0.8,
@@ -42,9 +46,26 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         f_x_desired[inpaint_group] = 1e-6
         f_x_desired_discrete[inpaint_group] = 0
         return f_x, f_x_discrete, f_x_desired, f_x_desired_discrete
+    
+    def torch_dilation(self, images, kernel_size):
+        if not isinstance(images, torch.Tensor):
+            images = torch.tensor(images, dtype=torch.float32)
+        
+        if images.ndim == 3:  # Assuming input shape is (B, H, W)
+            images = images.unsqueeze(1)  # Add a channel dim: (B, 1, H, W)
+           
+        dilated_images = F.max_pool2d(images, (kernel_size,kernel_size), stride=1)
+        return dilated_images.squeeze(1)
+
 
     def reconstruction_loss(self, real_imgs, gen_imgs, masks, f_x_discrete, f_x_desired_discrete, z=None):
-        if not self.opt.get('only_cyclic_rec',False):
+        if self.opt.get('reconstruction_dilation', False):
+            diff = (real_imgs - gen_imgs).abs()
+            dilated = self.torch_dilation(diff, self.dilation_kernel_size)
+            return dilated.sum()/diff.numel()
+            
+        
+        if self.opt.get('only_cyclic_rec',False):
             ifxc_fx = self.explanation_function(
             x=gen_imgs,  # I_f(x, c)
             f_x_discrete=f_x_desired_discrete, # f_x_desired_discrete is always zeros
@@ -54,9 +75,7 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         
         forward_term = self.l1(real_imgs, gen_imgs)
         
-        
-        
-        if not self.opt.get('cyclic_rec', False):
+        if self.opt.get('only_forward_term', False):
             return forward_term
 
         ifxc_fx = self.explanation_function(
@@ -107,6 +126,9 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         gen_imgs = self.gen(z, real_f_x_desired_discrete, x=real_imgs if self.ptb_based else None)
 
         update_generator = global_step is not None and global_step % self.gen_update_freq == 0
+        if self.apply_tanh_to_non_gen_imgs:
+            real_imgs = torch.tanh(real_imgs)
+            healthy_example = torch.tanh(healthy_example)
         
         ### Update generator without balancer.
         if update_generator or validation:
@@ -115,7 +137,7 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
                 
                 ########## data consistency loss for generator
                 dis_fake = self.disc(gen_imgs, real_f_x_desired_discrete)
-                dis_real = self.disc(healthy_example, real_f_x_desired_discrete)
+                dis_real = self.disc(healthy_example, real_f_x_desired_discrete) ### SIIA TANH
                 if self.adv_loss == 'hinge':
                     g_adv_loss = loss_hinge_gen(dis_fake)
                 if self.adv_loss == 'long_live_gan':

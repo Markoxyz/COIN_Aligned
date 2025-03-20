@@ -40,12 +40,22 @@ def main(args):
         print(type(inputs))
         logging.info(type(inputs))
         img = (((inputs[0, 0] + 1) / 2)*255).clamp(0, 255).byte()
-        print(i, img.shape, inputs.shape)
-        Image.fromarray(img.cpu().numpy()).save(f'tmp/b/{i}.png')
+
+        img_1_rgb = Image.fromarray(img.cpu().numpy())
         
         img_2 = (((healthy[0, 0] + 1) / 2)*255).clamp(0, 255).byte()
-        Image.fromarray(img_2.cpu().numpy()).save(f'tmp/b/{i}_healthy.png')
+        img_2_rgb = Image.fromarray(img_2.cpu().numpy())
         
+        ## Image.fromarray(img_2.cpu().numpy()).save(f'tmp/b/{i}.png')
+        
+        w, h = img_1_rgb.size
+        
+        combined_img = Image.new("L", (2 * w, h))
+        
+        combined_img.paste(img_1_rgb, (0, 0))
+        combined_img.paste(img_2_rgb, (w, 0))
+        
+        combined_img.save(f'tmp/b/{i}_combined.png')
         
         if i == 10:
             break

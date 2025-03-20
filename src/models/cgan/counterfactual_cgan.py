@@ -129,6 +129,7 @@ class CounterfactualCGAN(nn.Module):
         return gen_imgs
 
     def reconstruction_loss(self, real_imgs, gen_imgs, masks, f_x_discrete, f_x_desired_discrete, z=None):
+        raise Exception("RECON KUTSUTAKSE VÄLJA VALEST KOHAST")
         """
         Computes a reconstruction loss L_rec(E, G) that enforces self-consistency loss
         Formula 9 https://arxiv.org/pdf/2101.04230v3.pdf#page=7&zoom=100,30,412

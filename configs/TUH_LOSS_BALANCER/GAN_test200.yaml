@@ -1,13 +1,12 @@
 task_name: counterfactual_inpainting
-logging_dir: /scratch/project_465001111/coin_training_logs/GAN/V8_GAMMA_VARIATION
-
+logging_dir: /scratch/project_465001111/coin_training_logs/GAN/V9_clf_off
 seed: 777
 sample_interval: 50
 
 n_epochs: 81
 #epoch_steps: 10
 
-experiment_name: V8_clf_off_gamma_10
+experiment_name: V9_clf_off_gamma_1000
 checkpoint_freq: 1
 eval_counter_freq: 5
 cf_gt_seg_mask_idx: 2
@@ -62,7 +61,7 @@ model:
   adv_loss: long_live_gan
   loss_balancer: False
   lambda_adv: 1.0
-  adv_gamma: 10.0
+  adv_gamma: 1000.0
   lambda_kl: 0.0
   lambda_rec: 1.0
   lambda_tv: 0.00005
