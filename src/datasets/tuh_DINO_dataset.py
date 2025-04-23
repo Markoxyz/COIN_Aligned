@@ -5,6 +5,10 @@ import numpy as np
 from collections import defaultdict
 import torch
 from torch.utils.data import ConcatDataset
+from torchvision import transforms
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+import cv2
 
 from src.datasets.tsm_scan import CTScan as _CTScan
 
@@ -18,8 +22,8 @@ class CTScan(_CTScan):
         return s
 
 
-class TUHDataset_pairs(torch.utils.data.Dataset):
-    def __init__(self, root_dir:str, split:str, split_dir:str='splits', limit_scans:int = 99999, **scan_params):
+class TUHDataset_DINO(torch.utils.data.Dataset):
+    def __init__(self, root_dir:str, split:str='train', split_dir:str='splits', limit_scans:int = 99999, **scan_params):
         self.root_dir = Path(root_dir)
         self.split = split
         
@@ -104,9 +108,33 @@ class TUHDataset_pairs(torch.utils.data.Dataset):
             
         self.scans_with_label_0_heights = scans_with_label_0_heights
         
-        print("HERE ARE THE VALUES FOR THE HEIGHT BINS")
-        for key, value in scans_with_label_0_heights.items():
-            print(f"{key}: {len(value)}")
+        global_crops_scale = (0.4, 1.)
+        local_crops_scale = (0.05, 0.4)
+        
+        # Augmentations 
+        self.global_transform1 = A.Compose([
+            A.RandomResizedCrop(224, 224, scale=global_crops_scale, interpolation=cv2.INTER_CUBIC),
+            A.HorizontalFlip(p=0.5),
+            A.GaussianBlur(blur_limit=(3, 7), sigma_limit=(0.1, 1.0), p=1.0),
+            ToTensorV2()
+        ])
+
+        self.global_transform2 = A.Compose([
+            A.RandomResizedCrop(224, 224, scale=global_crops_scale, interpolation=cv2.INTER_CUBIC),
+            A.HorizontalFlip(p=0.5),
+            A.GaussianBlur(blur_limit=(3, 7), sigma_limit=(0.1, 0.1), p=1.0),
+            A.Solarize(threshold=128, p=0.2),
+            ToTensorV2()
+        ])
+        
+        self.local_transform = A.Compose([
+            A.RandomResizedCrop(96, 96, scale=local_crops_scale, interpolation=cv2.INTER_CUBIC),  # Crop
+            A.HorizontalFlip(p=0.5),  # Equivalent to flip in `flip_and_color_jitter`
+            A.GaussianBlur(blur_limit=(3, 7), sigma_limit=(0.1, 2.0), p=0.5),  # Blur
+            ToTensorV2()
+        ])
+        
+        
 
 
     def get_sampling_labels(self):
@@ -115,7 +143,7 @@ class TUHDataset_pairs(torch.utils.data.Dataset):
         return lbs
     
     def get_relative_indices(self):
-        return list(chain.from_iterable(scan.get_relative_indices() for scan in self.scans))
+        return list(chain.from_iterable(scan.get_relative_indices(levels = 20) for scan in self.scans))
 
     def __len__(self):
         return len(self.scans_with_label_1)
@@ -124,12 +152,33 @@ class TUHDataset_pairs(torch.utils.data.Dataset):
         sample_index = self.scans_with_label_1[index]
         sample = self.scans_dataset[sample_index]
         
-        sample_height = self.relative_slice_height[sample_index]
+        sample_2_index =  np.random.choice(self.scans_with_label_1)
+        sample_2 = self.scans_dataset[sample_2_index]
+        
+
+        #normalise 
+        sample['image'] = (sample['image'] + 1)/2
+        sample_2['image'] = (sample_2['image'] + 1)/2
+        
 
         
+        if sample['image'].shape[0] == 1:  # Ensure it's a single-channel image
+            sample['image'] = sample['image'].repeat(3, 1, 1).numpy()  # Expand to 3 channels
+        if sample_2['image'].shape[0] == 1:
+            sample_2['image'] = sample_2['image'].repeat(3, 1, 1).numpy()
         
-        healthy_index = np.random.choice(self.scans_with_label_0_heights[sample_height])
         
-        healthy_sample = self.scans_dataset[healthy_index]
-        sample['healthy_example'] = healthy_sample['image']
-        return sample
+        
+        crops = []
+        
+        crops.append(self.global_transform1(image=sample['image']))
+        crops.append(self.global_transform2(image=sample['image']))
+        crops.append(self.global_transform1(image=sample_2['image']))
+        crops.append(self.global_transform2(image=sample_2['image']))
+        
+        for _ in range(4):
+            crops.append(self.local_transform(image=sample_2['image']))
+    
+        
+        
+        return crops

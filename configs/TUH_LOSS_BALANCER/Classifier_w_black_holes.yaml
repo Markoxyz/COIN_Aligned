@@ -4,10 +4,10 @@ seed: 777
 sample_interval: 30
 
 n_epochs: 40
-epoch_steps: 50
+#epoch_steps: 50
 
-logging_dir: /scratch/project_465001111/coin_training_logs/classification/tuh-full-ctnorm
-experiment_name: LOSS_BALANCER_V4
+logging_dir: /scratch/project_465001111/coin_training_logs/classification/V2_classifiers
+experiment_name: Classifier_micro_lr
 checkpoint_freq: 5
 
 dataset:
@@ -19,7 +19,7 @@ dataset:
   num_workers: 7
   imagenet_norm: False # mean=[0.5], std=[0.5]
   root_dir: null
-  augs: [hflip, vflip, shift_scale_rotate, black_holes]  # only resize and norm
+  augs: [hflip, vflip, shift_scale_rotate]  # only resize and norm
 
   datasets:
     - kind: tuh
@@ -59,7 +59,7 @@ model:
   loss: bce
 
   # optimizer's parameters
-  lr: 0.0003
+  lr: 0.00005
   b1: 0.9
   b2: 0.999
-  weight_decay: 0.0001
+  weight_decay: 0.001

@@ -21,6 +21,12 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         self.adv_gamma = opt.get('adv_gamma', 1.0)
         self.apply_tanh_to_non_gen_imgs = opt.get('apply_tanh_to_non_gen_imgs', False)
         self.dilation_kernel_size = opt.get('dilation_kernel_size', 2)
+        self.cf_gt_seg_mask_idx = opt.get('cf_gt_seg_mask_idx', -1)
+        self.cf_threshold = opt.get('cf_threshold', 0.25)
+        self.lambda_iou = opt.get('lambda_iou', 0.0)
+        self.always_generate_healthy = opt.get('always_generate_healthy', False)
+        
+        print("Always_generate_Helathy is set to: ", self.always_generate_healthy)
         print(f"Kernel based recon loss set to {opt.get('reconstruction_dilation', False)} used for this is: {self.dilation_kernel_size}")
         if self.loss_balancer:
             self.loss_balancer_obj = PastGradientLossBalancer(['g_adv_loss','g_kl','g_rec_loss','g_tv'],
@@ -36,16 +42,21 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
             print("USING LOSS BALANCER!")
     
     def posterior_prob(self, x):
-        f_x, f_x_discrete, _, _ = super().posterior_prob(x)
+        f_x, f_x_discrete, _, _, penultimate = super().posterior_prob(x)
         f_x_desired = f_x.clone().detach()
         f_x_desired_discrete = f_x_discrete.clone().detach()
         
         # mask of what samples classifier predicted as `abnormal`
-        inpaint_group = f_x_discrete.bool()
+        if self.always_generate_healthy:
+            inpaint_group = torch.ones_like(f_x_discrete).bool()
+        else:
+            inpaint_group = f_x_discrete.bool()
+        
+        
         # `abnormalities` need to be inpainted and classifier should predict `normal` on them
         f_x_desired[inpaint_group] = 1e-6
         f_x_desired_discrete[inpaint_group] = 0
-        return f_x, f_x_discrete, f_x_desired, f_x_desired_discrete
+        return f_x, f_x_discrete, f_x_desired, f_x_desired_discrete, penultimate
     
     def torch_dilation(self, images, kernel_size):
         if not isinstance(images, torch.Tensor):
@@ -57,6 +68,28 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         dilated_images = F.max_pool2d(images, (kernel_size,kernel_size), stride=1)
         return dilated_images.squeeze(1)
 
+
+    def perfect_classifier_IoU(self, real_imgs, gen_imgs, gt_masks):
+            # FUnction to emulate perfect calssifer to understand if the GAN pipeline is able to complete the task
+            gt_masks = gt_masks[:, self.cf_gt_seg_mask_idx]
+            if gt_masks.ndim == 3:
+                gt_masks = gt_masks.unsqueeze(1)
+
+            real_imgs = (real_imgs + 1) / 2
+            gen_imgs = (gen_imgs + 1) / 2
+            
+            diff = (real_imgs - gen_imgs).abs() # [0; 1] values
+            diff_seg = (diff > self.cf_threshold).byte()
+            intersection = (diff_seg * gt_masks).sum(dim=[2, 3])
+
+            union = diff_seg.sum(dim=[2, 3]) + gt_masks.sum(dim=[2, 3]) - intersection
+            batch_ious = (intersection / union.clamp(min=1e-8)).flatten()
+            batch_ious = torch.ones_like(batch_ious) - batch_ious
+            
+            
+            return kl_divergence(batch_ious, torch.zeros_like(batch_ious))
+        
+        
 
     def reconstruction_loss(self, real_imgs, gen_imgs, masks, f_x_discrete, f_x_desired_discrete, z=None):
         if self.opt.get('reconstruction_dilation', False):
@@ -111,7 +144,7 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
             # technically condition `c` (real_f_x_desired) is now classifier driven choice to:
             # 1) `inpaint`  (real_f_x_desired == 1)
             # 2) `identity` (real_f_x_desired == 0)
-            real_f_x, real_f_x_discrete, real_f_x_desired, real_f_x_desired_discrete = self.posterior_prob(real_imgs)
+            real_f_x, real_f_x_discrete, real_f_x_desired, real_f_x_desired_discrete, penultimate = self.posterior_prob(real_imgs)
             
 
         # -----------------
@@ -123,7 +156,7 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         # E(x)
         z = self.enc(real_imgs)
         # G(z, c) = I_f(x, c)
-        gen_imgs = self.gen(z, real_f_x_desired_discrete, x=real_imgs if self.ptb_based else None)
+        gen_imgs = self.gen(z, real_f_x_desired_discrete, x=real_imgs if self.ptb_based else None, class_prob = real_f_x, classifier_output=penultimate)
 
         update_generator = global_step is not None and global_step % self.gen_update_freq == 0
         if self.apply_tanh_to_non_gen_imgs:
@@ -148,7 +181,7 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
                 
                 
                 ######### Classifier loss
-                gen_f_x, _, _, _ = self.posterior_prob(gen_imgs)
+                gen_f_x, _, _, _,_ = self.posterior_prob(gen_imgs)
                 # both y_pred and y_target are single-value probs for class k
                 g_kl = (
                     kl_divergence(gen_f_x, real_f_x_desired)
@@ -212,7 +245,7 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
 
                 # classifier consistency loss for generator
                 # f(I_f(x, c)) ≈ c
-                gen_f_x, _, _, _ = self.posterior_prob(gen_imgs)
+                gen_f_x, _, _, _,_ = self.posterior_prob(gen_imgs)
                 # both y_pred and y_target are single-value probs for class k
                 g_kl = (
                     self.lambda_kl * kl_divergence(gen_f_x, real_f_x_desired)
@@ -233,7 +266,12 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
                 else:
                     g_tv = torch.tensor(0.0, requires_grad=True)
                 # total generator loss
-                g_loss = g_adv_loss + g_kl + g_rec_loss + g_minc_loss + g_tv
+                if self.lambda_iou != 0:
+                    g_iou = self.lambda_iou * self.perfect_classifier_IoU(real_imgs, gen_imgs, masks)
+                else:
+                    g_iou = torch.tensor(0.0, requires_grad=True)
+                    
+                g_loss = g_adv_loss + g_kl + g_rec_loss + g_minc_loss + g_tv + g_iou
                 
 
             # update generator

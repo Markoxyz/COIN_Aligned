@@ -208,7 +208,7 @@ class CTScan(torch.utils.data.Dataset):
             print(f'{self} has no slices for classes: {filter_classes}')
         return indices
     
-    def get_relative_indices(self):
+    def get_relative_indices(self, levels = 50):
         indices = self.slice_indices 
         groups = self.no_of_filtered_slices
         
@@ -220,7 +220,7 @@ class CTScan(torch.utils.data.Dataset):
             length = max_element-min_element
             
             normalised_indices = (indices[start_index:start_index + no_of_elements] - min_element) / length
-            relative_indices.extend((normalised_indices * 50).astype(int))
+            relative_indices.extend((normalised_indices * levels).astype(int))
         
         return relative_indices
 

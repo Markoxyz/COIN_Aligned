@@ -1,16 +1,16 @@
 task_name: counterfactual_inpainting
-logging_dir: /scratch/project_465001111/coin_training_logs/GAN/V8
-
+logging_dir: /scratch/project_465001111/coin_training_logs/GAN/V18_NEW_CLF
 seed: 777
 sample_interval: 50
 
-n_epochs: 31
-#epoch_steps: 10
+n_epochs: 51
+#epoch_steps: 1000
 
-experiment_name: V8_clf_on
+experiment_name: MICRO_LR_ASLO_FOR_GAN
 checkpoint_freq: 1
 eval_counter_freq: 5
 cf_gt_seg_mask_idx: 2
+apply_tanh_to_non_gen_imgs_in_eval: True
 log_visualizations: false
 
 compute_norms: False
@@ -62,17 +62,21 @@ model:
   adv_loss: long_live_gan
   loss_balancer: False
   lambda_adv: 1.0
+  adv_gamma: 50.0
   lambda_kl: 1.0
-  lambda_rec: 1.0
-  lambda_tv: 0.00005
+  always_generate_healthy: True
+  lambda_rec: 0.25
+  lambda_iou: 0.0
+  reconstruction_dilation: True
+  dilation_kernel_size: 5
+  lambda_tv: 0.0005
   lambda_minc: 0.0
+  apply_tanh_to_non_gen_imgs: True
   # precision: 16-mixed
   precision: '32'
-
-  cyclic_rec: True
   
   # optimizers' parameters
-  lr: 0.0002
+  lr: 0.0001 # USED TO BE 0.0002
   b1: 0.0
   b2: 0.999
   
@@ -90,6 +94,7 @@ model:
     use_snconv: false
     # indices are specifided w.r.t bottleneck (index=0) and upwards
     skip_conn: [1, 2, 3, 4]
+    ptb_fuse_type: skip_add_shifted_normalize_tanh
 
   disc_params:
     downsample_scales: [2, 2, 2, 2, 2]
@@ -102,4 +107,4 @@ model:
   # classifier parameters
   classifier_kind: efficientnet_v2_s
   n_classes: 1 # number of classes in the classifier
-  classifier_ckpt: /scratch/project_465001111/coin_training_logs/classification/tuh-full-ctnorm/efficientnet_v2_s-February-07-2025_11+06PM-7a44e6b-LOSS_BALANCER_V4/checkpoints/checkpoint_25.pth
+  classifier_ckpt: /scratch/project_465001111/coin_training_logs/classification/V2_classifiers/efficientnet_v2_s-April-21-2025_10+08PM-d50e2f8-Classifier_micro_lr/checkpoints/checkpoint_-2.pth

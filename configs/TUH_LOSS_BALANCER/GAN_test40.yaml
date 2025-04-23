@@ -1,12 +1,12 @@
 task_name: counterfactual_inpainting
-logging_dir: /scratch/project_465001111/coin_training_logs/GAN/V9_clf_on
+logging_dir: /scratch/project_465001111/coin_training_logs/GAN/DEBUG
 seed: 777
 sample_interval: 50
 
 n_epochs: 81
 #epoch_steps: 10
 
-experiment_name: V9_clf_on_gamma_1000
+experiment_name: dbug_dataloader
 checkpoint_freq: 1
 eval_counter_freq: 5
 cf_gt_seg_mask_idx: 2
@@ -16,7 +16,7 @@ compute_norms: False
 
 dataset:
   kind: merged
-  batch_size: 16
+  batch_size: 1
   img_size: [256, 256] # hxw
   use_sampler: True
   use_only_1_class: True
@@ -27,7 +27,7 @@ dataset:
   augs: [] # only resize and norm
 
   datasets:
-    - kind: tuh_pairs
+    - kind: DINO
       root_dir: /projappl/project_465001111/ct_data/kidney
       split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/TUH_LOSS_BALANCER/splits
 

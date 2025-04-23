@@ -144,7 +144,7 @@ class ResBlocksGenerator(nn.Module):
     def initialize(self):
         nn.init.xavier_uniform_(self.last_block[2].weight, torch.tensor(1.0))
 
-    def forward(self, enc_features, labels, x=None, ret_features=False):
+    def forward(self, enc_features, labels, x=None, ret_features=False, class_prob = 1.0,classifier_output=None):
         enc_features = enc_features[::-1] # revert the enc_features to begin with encoder head
         outs = enc_features[0] # latent variable `z`; (B, 1024, 8, 8) for img_shape=(256, 256)
         
@@ -154,7 +154,7 @@ class ResBlocksGenerator(nn.Module):
             if i > 0 and i in self.skip_conn:
                 # print('stack', enc_features[i].shape)
                 outs = torch.cat((outs, enc_features[i]), 1)
-            outs = b(outs, labels)
+            outs = b(outs, labels, class_prob, classifier_output)
             if ret_features:
                 dec_features[f'dec_block_{i}'] = outs
         outs = self.last_block(outs)
@@ -170,7 +170,7 @@ class ResBlocksGenerator(nn.Module):
             elif self.ptb_fuse_type == 'skip_add_shifted_normalize_tanh':
                 outs = self.tanh(outs)
                 outs = outs - 0.6
-                outs = outs / 1.2
+                outs = outs / 0.8  # used to be 1.2
                 outs = outs + x
                 return self.tanh(outs)
             elif self.ptb_fuse_type == 'skip_add_l2_tanh':

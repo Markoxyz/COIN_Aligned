@@ -1,13 +1,13 @@
 task_name: counterfactual_inpainting
-logging_dir: /scratch/project_465001111/coin_training_logs/GAN/V12_TANH_V2_no_TV
+logging_dir: /scratch/project_465001111/coin_training_logs/GAN/V13_Connection_to_Classifier
 seed: 777
 sample_interval: 50
 
 n_epochs: 51
 #epoch_steps: 10
 
-experiment_name: V12_TANH_V2_no_TV
-checkpoint_freq: 1
+experiment_name: V13_Version_2
+checkpoint_freq: 5
 eval_counter_freq: 5
 cf_gt_seg_mask_idx: 2
 apply_tanh_to_non_gen_imgs_in_eval: True

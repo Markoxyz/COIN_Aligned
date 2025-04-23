@@ -129,7 +129,7 @@ class CounterfactualInpaintingTrainer(CounterfactualTrainer):
             B = labels.shape[0]
 
             self.model: CounterfactualInpaintingCGAN
-            real_f_x, real_f_x_discrete, real_f_x_desired, real_f_x_desired_discrete = self.model.posterior_prob(real_imgs)
+            real_f_x, real_f_x_discrete, real_f_x_desired, real_f_x_desired_discrete, penultimate = self.model.posterior_prob(real_imgs)
 
             # our ground truth is the `flipped` labels
             cv_y_true.extend(real_f_x_desired_discrete.cpu().squeeze(1).numpy())
@@ -137,13 +137,13 @@ class CounterfactualInpaintingTrainer(CounterfactualTrainer):
             classes.extend(labels.cpu().numpy())
 
             # computes I_f(x, c)
-            gen_cf_c = self.model.explanation_function(real_imgs, real_f_x_desired_discrete)
+            gen_cf_c = self.model.explanation_function(real_imgs, real_f_x_desired_discrete, class_prob = real_f_x, classifier_output=penultimate)
             
             if self.apply_tanh_to_non_gen_imgs:
                 real_imgs = torch.tanh(real_imgs)
 
             # computes f(x_c)
-            gen_f_x, gen_f_x_discrete, _, _ = self.model.posterior_prob(gen_cf_c)
+            gen_f_x, gen_f_x_discrete, _, _,_ = self.model.posterior_prob(gen_cf_c)
             # our prediction is the classifier's label for the generated images given the desired posterior probability
             cv_y_pred.extend(gen_f_x_discrete.cpu().squeeze(1).numpy())
             posterior_pred.extend(gen_f_x.cpu().squeeze(1).numpy())
@@ -320,7 +320,7 @@ class CounterfactualInpaintingV2Trainer(CounterfactualInpaintingTrainer):
             gen_cf_c = self.model.explanation_function(real_imgs, real_f_x_discrete)
 
             # computes f(x_c)
-            gen_f_x, gen_f_x_discrete, _, _ = self.model.posterior_prob(gen_cf_c)
+            gen_f_x, gen_f_x_discrete, _, _,_ = self.model.posterior_prob(gen_cf_c)
             # our prediction is the classifier's label for the generated images given the desired posterior probability
             cv_y_pred.extend(gen_f_x_discrete.cpu().squeeze(1).numpy())
             posterior_pred.extend(gen_f_x.cpu().squeeze(1).numpy())

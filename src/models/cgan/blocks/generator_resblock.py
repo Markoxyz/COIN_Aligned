@@ -57,13 +57,13 @@ class GeneratorResBlock(nn.Module):
                 nn.init.xavier_uniform_(m.weight, gain)
         nn.init.xavier_uniform_(self.last_conv.weight, gain)
 
-    def forward(self, x, labels):
+    def forward(self, x, labels, class_prob=1.0, classifier_output=None):
         labels = labels.view(-1)
         left = self.left_branch(x)
 
-        right = self.cbn_relu_first(x, labels)
+        right = self.cbn_relu_first(x, labels, class_prob, classifier_output)
         right = self.upsample_conv(right)
-        right = self.cbn_relu_second(right, labels)
+        right = self.cbn_relu_second(right, labels, class_prob, classifier_output)
         right = self.last_conv(right)
 
         return left + right

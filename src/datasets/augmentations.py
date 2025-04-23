@@ -32,7 +32,6 @@ def get_transforms(opt):
     train_ops = []
     if 'black_holes' in opt.augs:
         train_ops.append(Black_hole_aug())
-
     if 'hflip' in opt.augs:
         train_ops.append(albu.HorizontalFlip(p=0.5))
     if 'vflip' in opt.augs:

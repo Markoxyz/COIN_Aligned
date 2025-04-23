@@ -110,22 +110,33 @@ class CounterfactualCGAN(nn.Module):
     def posterior_prob(self, x):
         assert self.classifier_f.training is False, 'Classifier is not set to evaluation mode'
         # f(x)[k] - classifier prediction at class k
-        f_x = self.classifier_f(x)
+        #f_x = self.classifier_f(x)
+        x = self.classifier_f.features(x)        # Convolutional base
+        x = self.classifier_f.avgpool(x)         # Global avg pooling
+        x = torch.flatten(x, 1)
+        
+        penultimate = x
+        f_x = self.classifier_f.classifier(x)
+        
+        
+        #f_x2 = f_x.clone()
+        
         f_x = f_x.softmax(dim=1) if self.n_classes > 1 else f_x.sigmoid()
         f_x = f_x[:, [self.explain_class_idx]]
         f_x_discrete = posterior2bin(f_x, self.num_bins)
         # the posterior probabilities `c` we would like to obtain after the explanation image is fed into the classifier
         f_x_desired = Variable(1.0 - f_x.detach(), requires_grad=False)
         f_x_desired_discrete = posterior2bin(f_x_desired, self.num_bins)
-        return f_x, f_x_discrete, f_x_desired, f_x_desired_discrete
+        #return f_x2, f_x_discrete, f_x_desired, f_x_desired_discrete
+        return f_x, f_x_discrete, f_x_desired, f_x_desired_discrete, penultimate
 
-    def explanation_function(self, x, f_x_discrete, z=None, ret_features=False):
+    def explanation_function(self, x, f_x_discrete, z=None, ret_features=False, class_prob = 1.0, classifier_output = None):
         """Computes I_f(x, c)"""
         if z is None:
             # get embedding of the input image
             z = self.enc(x)
         # reconstruct explanation images
-        gen_imgs = self.gen(z, f_x_discrete, x=x if self.ptb_based else None, ret_features=ret_features)
+        gen_imgs = self.gen(z, f_x_discrete, x=x if self.ptb_based else None, ret_features=ret_features, class_prob = class_prob,classifier_output=classifier_output)
         return gen_imgs
 
     def reconstruction_loss(self, real_imgs, gen_imgs, masks, f_x_discrete, f_x_desired_discrete, z=None):
@@ -173,7 +184,7 @@ class CounterfactualCGAN(nn.Module):
 
         # Classifier predictions and desired outputs for the explanation function
         with torch.no_grad():
-            real_f_x, real_f_x_discrete, real_f_x_desired, real_f_x_desired_discrete = self.posterior_prob(real_imgs)
+            real_f_x, real_f_x_discrete, real_f_x_desired, real_f_x_desired_discrete, penultimate = self.posterior_prob(real_imgs)
 
         # -----------------
         #  Train Generator
@@ -185,7 +196,7 @@ class CounterfactualCGAN(nn.Module):
         # E(x)
         z = self.enc(real_imgs)
         # G(z, c) = I_f(x, c)
-        gen_imgs = self.gen(z, real_f_x_desired_discrete, x=real_imgs if self.ptb_based else None)
+        gen_imgs = self.gen(z, real_f_x_desired_discrete, x=real_imgs if self.ptb_based else None, class_prob = real_f_x, classifier_output=penultimate)
 
         update_generator = global_step is not None and global_step % self.gen_update_freq == 0
         
@@ -199,7 +210,7 @@ class CounterfactualCGAN(nn.Module):
 
             # classifier consistency loss for generator
             # f(I_f(x, c)) ≈ c
-            gen_f_x, _, _, _ = self.posterior_prob(gen_imgs)
+            gen_f_x, _, _, _, _ = self.posterior_prob(gen_imgs)
             # both y_pred and y_target are single-value probs for class k
             g_kl = (
                 self.lambda_kl * kl_divergence(gen_f_x, real_f_x_desired)
@@ -262,7 +273,7 @@ class CounterfactualCGAN(nn.Module):
         return outs
 
     def generate_counterfactual(self, real_imgs:torch.Tensor) -> torch.Tensor:
-        real_f_x, real_f_x_discrete, real_f_x_desired, real_f_x_desired_discrete = self.posterior_prob(real_imgs)
-        gen_cf_c = self.explanation_function(real_imgs, real_f_x_desired_discrete)
+        real_f_x, real_f_x_discrete, real_f_x_desired, real_f_x_desired_discrete, penultimate = self.posterior_prob(real_imgs)
+        gen_cf_c = self.explanation_function(real_imgs, real_f_x_desired_discrete,classifier_output=penultimate)
         diff = (real_imgs - gen_cf_c).abs()
         return real_f_x_discrete, real_f_x_desired_discrete, gen_cf_c, diff

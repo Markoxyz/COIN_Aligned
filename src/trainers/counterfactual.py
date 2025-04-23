@@ -100,8 +100,8 @@ class CounterfactualTrainer(BaseTrainer):
                         for model_name, norms in self.model.norms.items():
                             self.logger.log(norms, self.batches_done, f'{model_name}_gradients_norm')
         epoch_stats = stats.average()
-        if self.current_epoch % self.opt.eval_counter_freq == 0 and self.current_epoch > 0:
-            epoch_stats.update(self.evaluate_counterfactual(loader, phase='train'))
+        #if self.current_epoch % self.opt.eval_counter_freq == 0 and self.current_epoch > 0:
+        #    epoch_stats.update(self.evaluate_counterfactual(loader, phase='train'))
         self.logger.info('[Average positives/negatives ratio in batch: %f]' % round(avg_pos_to_neg_ratio.item() / len(loader), 3))
         self.logger.log(epoch_stats, self.current_epoch, 'train')
         self.logger.info(
