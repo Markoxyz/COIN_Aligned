@@ -1,14 +1,14 @@
 task_name: counterfactual_inpainting
-logging_dir: /scratch/project_465001979/coin_training_logs/GAN/V19_NEW_SPLIT
+logging_dir: /scratch/project_465001979/coin_training_logs/GAN/FINAL_EXPERIMENT_BALANCED
 seed: 777
 sample_interval: 50
 
-n_epochs: 51
+n_epochs: 100
 #epoch_steps: 1000
 
-experiment_name: NEW_SPLIT_NO_REC
+experiment_name: EXPERIMENT_4_LONG_LIVE_GAN
 checkpoint_freq: 1
-eval_counter_freq: 5
+eval_counter_freq: 1
 cf_gt_seg_mask_idx: 2
 apply_tanh_to_non_gen_imgs_in_eval: True
 log_visualizations: false
@@ -30,7 +30,7 @@ dataset:
   datasets:
     - kind: tuh_pairs
       root_dir: /projappl/project_465001111/ct_data/kidney
-      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/TUH_LOSS_BALANCER/new_splits
+      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/THESIS_EXPERIMETNS/thesis_splits
 
       # TUH_LABEL_NAMES = {
       #     1: "kidney",
@@ -67,8 +67,6 @@ model:
   always_generate_healthy: True
   lambda_rec: 0.0
   lambda_iou: 0.0
-  reconstruction_dilation: True
-  dilation_kernel_size: 5
   lambda_tv: 0.0005
   lambda_minc: 0.0
   apply_tanh_to_non_gen_imgs: True
@@ -76,7 +74,7 @@ model:
   precision: '32'
 
   original_discriminator: False # maening use lables in discriminator
-  use_signal_from_classifier: True # MEANING USE Classifier connection
+  use_signal_from_classifier: False # MEANING USE Classifier connection
   align_discriminator : True # Use together with tuh_paired dataset and long live gan
   
   # optimizers' parameters
@@ -98,7 +96,6 @@ model:
     use_snconv: false
     # indices are specifided w.r.t bottleneck (index=0) and upwards
     skip_conn: [1, 2, 3, 4]
-    ptb_fuse_type: skip_add_shifted_normalize_tanh
 
   disc_params:
     downsample_scales: [2, 2, 2, 2, 2]
@@ -111,4 +108,4 @@ model:
   # classifier parameters
   classifier_kind: efficientnet_v2_s
   n_classes: 1 # number of classes in the classifier
-  classifier_ckpt: /scratch/project_465001111/coin_training_logs/classification/V2_classifiers/efficientnet_v2_s-April-28-2025_02+24PM-fde0568-Classifier_brightness_aug/checkpoints/checkpoint_15.pth
+  classifier_ckpt: /scratch/project_465001979/coin_training_logs/classification/FINAL_EXPERIMENT_BALANCED/efficientnet_v2_s-May-05-2025_04+13PM-fde0568-OG_COIN_CLASSIFIER/checkpoints/checkpoint_-2.pth

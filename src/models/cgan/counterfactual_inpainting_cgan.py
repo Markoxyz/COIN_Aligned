@@ -26,6 +26,9 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         self.lambda_iou = opt.get('lambda_iou', 0.0)
         self.always_generate_healthy = opt.get('always_generate_healthy', False)
         
+        self.align_discriminator = opt.get('align_discriminator', False)
+
+        
         print("Always_generate_Helathy is set to: ", self.always_generate_healthy)
         print(f"Kernel based recon loss set to {opt.get('reconstruction_dilation', False)} used for this is: {self.dilation_kernel_size}")
         if self.loss_balancer:
@@ -93,6 +96,8 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
 
     def reconstruction_loss(self, real_imgs, gen_imgs, masks, f_x_discrete, f_x_desired_discrete, z=None):
         if self.opt.get('reconstruction_dilation', False):
+            real_imgs = (real_imgs + 1) / 2
+            gen_imgs = (gen_imgs + 1) / 2
             diff = (real_imgs - gen_imgs).abs()
             dilated = self.torch_dilation(diff, self.dilation_kernel_size)
             return dilated.sum()/diff.numel()
@@ -127,14 +132,19 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         assert training and not validation or validation and not training
 
         # `real_imgs` and `gen_imgs` are in [-1, 1] range
-        imgs, labels, masks, healthy_example = batch['image'], batch['label'], batch['masks'], batch['healthy_example']
+        imgs, labels, masks= batch['image'], batch['label'], batch['masks']
+        
+        if self.align_discriminator:
+            healthy_example = batch['healthy_example']
+            healthy_example = Variable(healthy_example.type(FloatTensor))
+        
         batch_size = imgs.shape[0]
 
         # Configure input
         real_imgs = Variable(imgs.type(FloatTensor))
         masks = Variable(masks.type(FloatTensor))
         labels = Variable(labels.type(LongTensor))
-        healthy_example = Variable(healthy_example.type(FloatTensor))
+        
         # Adversarial ground truths
         valid = Variable(FloatTensor(batch_size, 1).fill_(1.0), requires_grad=False)
         fake = Variable(FloatTensor(batch_size, 1).fill_(0.0), requires_grad=False)
@@ -159,9 +169,12 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         gen_imgs = self.gen(z, real_f_x_desired_discrete, x=real_imgs if self.ptb_based else None, class_prob = real_f_x, classifier_output=penultimate)
 
         update_generator = global_step is not None and global_step % self.gen_update_freq == 0
+
+        
         if self.apply_tanh_to_non_gen_imgs:
             real_imgs = torch.tanh(real_imgs)
-            healthy_example = torch.tanh(healthy_example)
+            if self.align_discriminator:
+                healthy_example = torch.tanh(healthy_example)
         
         ### Update generator without balancer.
         if update_generator or validation:
@@ -170,7 +183,11 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
                 
                 ########## data consistency loss for generator
                 dis_fake = self.disc(gen_imgs, real_f_x_desired_discrete)
-                dis_real = self.disc(healthy_example, real_f_x_desired_discrete) ### SIIA TANH
+                if self.align_discriminator:
+                    dis_real = self.disc(healthy_example, real_f_x_desired_discrete) ### SIIA TANH
+
+                    
+                    
                 if self.adv_loss == 'hinge':
                     g_adv_loss = loss_hinge_gen(dis_fake)
                 if self.adv_loss == 'long_live_gan':
@@ -233,7 +250,9 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
                 
                 # data consistency loss for generator
                 dis_fake = self.disc(gen_imgs, real_f_x_desired_discrete)
-                dis_real = self.disc(healthy_example, real_f_x_desired_discrete)
+                if self.align_discriminator:
+                    dis_real = self.disc(healthy_example, real_f_x_desired_discrete)
+                
                 if self.adv_loss == 'hinge':
                     g_adv_loss = self.lambda_adv * loss_hinge_gen(dis_fake)
                     
@@ -281,6 +300,7 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
                     self.norms['E'] = grad_norm(self.enc)
                     self.norms['G'] = grad_norm(self.gen)
                 self.optimizer_G.step()
+                
 
             self.gen_loss_logs['g_adv'] = g_adv_loss.item()
             self.gen_loss_logs['g_kl'] = g_kl.item()
@@ -297,16 +317,21 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         # ---------------------
         if training:
             self.optimizer_D.zero_grad()
-            
-        healthy_example.requires_grad_() 
+        
+        if self.align_discriminator:
+            healthy_example.requires_grad_() 
         
         gen_imgs_detached = gen_imgs.detach()
         gen_imgs_detached.requires_grad_() 
             
         
         # Compute discriminator outputs
-        dis_real = self.disc(healthy_example)
-        dis_fake = self.disc(gen_imgs_detached)
+        if self.align_discriminator:
+            dis_real = self.disc(healthy_example)
+        else:
+            dis_real = self.disc(real_imgs, real_f_x_discrete) 
+            
+        dis_fake = self.disc(gen_imgs_detached, real_f_x_desired_discrete)
 
         # data consistency loss for discriminator (real and fake images)
         if self.adv_loss == 'hinge':
@@ -354,6 +379,6 @@ class CounterfactualInpaintingCGAN(CounterfactualCGAN):
         outs = {
             'loss': {**self.gen_loss_logs, **self.disc_loss_logs},
             'gen_imgs': gen_imgs,
-            'healthy_examples': healthy_example,
+            'healthy_examples': healthy_example if self.align_discriminator else real_imgs,
         }
         return outs

@@ -21,9 +21,10 @@ class Black_hole_aug(ImageOnlyTransform):
             y, x = np.ogrid[:h, :w]
             mask = (x - center[0])**2 + (y - center[1])**2 <= radius**2
             
-            img_array[mask] = [float(-1)]  # Set the circle area to black for all channels
+            offset = np.random.uniform(-2,0)
+            img_array[mask] += [float(offset)]  # Set the circle area to black for all channels
             
-        return img_array
+        return img_array.clip(-1,1)
 
     def apply(self, img, copy=True, **params):
         if copy:

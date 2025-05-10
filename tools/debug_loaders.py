@@ -34,22 +34,23 @@ def main(args):
 
     from PIL import Image
     for i, batch in enumerate(train_loader):
-        print("HEI HEI")
+        #print("HEI HEI")
         
         #inputs, labels, healthy = batch['image'], batch['label'], batch['healthy_example']
+        inputs, labels = batch['image'], batch['label']
         
         
         
         #print(type(inputs))
         #logging.info(type(inputs))
-        #img = (((inputs[0, 0] + 1) / 2)*255).clamp(0, 255).byte()
+        img = (((inputs[0, 0] + 1) / 2)*255).clamp(0, 255).byte()
 
         #img_1_rgb = Image.fromarray(img.cpu().numpy())
         
         #img_2 = (((healthy[0, 0] + 1) / 2)*255).clamp(0, 255).byte()
         #img_2_rgb = Image.fromarray(img_2.cpu().numpy())
         
-        ## Image.fromarray(img_2.cpu().numpy()).save(f'tmp/b/{i}.png')
+        Image.fromarray(img.cpu().numpy()).save(f'tmp/b/{i}.png')
         
         #w, h = img_1_rgb.size
         
@@ -59,7 +60,6 @@ def main(args):
         #combined_img.paste(img_2_rgb, (w, 0))
         
         #combined_img.save(f'tmp/b/{i}_combined.png')
-        print("Batch result", len(batch))
         
         if i == 10:
             break

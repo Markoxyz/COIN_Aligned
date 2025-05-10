@@ -91,10 +91,13 @@ class ResBlocksGenerator(nn.Module):
         skip_conn=None,
         ptb_fuse_type='skip_add_tanh',
         use_snconv=True,
+        use_signal_from_classifier = False,
     ):
         super().__init__()
         self.n_blocks = len(out_channels)
         assert len(upsample_scales) == len(out_channels)
+        
+        self.use_signal_from_classifier = use_signal_from_classifier
 
         self.skip_conn = set(skip_conn or [])
         in_channels = in_channels[::-1]
@@ -114,16 +117,17 @@ class ResBlocksGenerator(nn.Module):
         self.blocks = nn.ModuleList(
             [
                 blocks.GeneratorResBlock(n_classes, in_channels[0], out_channels[0], 
-                                         scale_factor=upsample_scales[0], upsample_kind=upsample_kind, use_snconv=use_snconv),
+                                         scale_factor=upsample_scales[0], upsample_kind=upsample_kind, use_snconv=use_snconv,use_signal_from_classifier = self.use_signal_from_classifier),
                 *(
                     blocks.GeneratorResBlock(n_classes, in_channels[i], out_channels[i], 
-                                             scale_factor=upsample_scales[i], upsample_kind=upsample_kind, use_snconv=use_snconv)
+                                             scale_factor=upsample_scales[i], upsample_kind=upsample_kind, use_snconv=use_snconv, use_signal_from_classifier = self.use_signal_from_classifier)
                     for i in range(1, self.n_blocks)
                 ),
             ]
         )
         self.last_block = nn.Sequential(
             # TODO: think if relu -> BN is better
+            # maybe this causes the model to generate only black holes?
             nn.BatchNorm2d(out_channels[-1]), 
             nn.ReLU(),
             nn.Conv2d(out_channels[-1], 1, kernel_size=3, padding=1), 

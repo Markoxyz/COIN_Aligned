@@ -27,8 +27,11 @@ class GeneratorResBlock(nn.Module):
         scale_factor=2,
         upsample_kind='nearest',
         use_snconv=True,
+        use_signal_from_classifier=False,
     ):
         super().__init__()
+        
+        self.use_signal_from_classifier = use_signal_from_classifier
 
         upsample = get_upsampling_layer(upsample_kind, scale_factor) if scale_factor > 1 else nn.Identity()
         ds_conv = snconv2d.SNConv2d if use_snconv else nn.Conv2d
@@ -37,8 +40,8 @@ class GeneratorResBlock(nn.Module):
             ds_conv(in_channels, out_channels, kernel_size=1, padding=0, bias=False),
         )
 
-        self.cbn_relu_first = cbn.ConditionalBatchNorm2d(in_channels, num_classes, act=nn.ReLU())
-        self.cbn_relu_second = cbn.ConditionalBatchNorm2d(out_channels, num_classes, act=nn.ReLU())
+        self.cbn_relu_first = cbn.ConditionalBatchNorm2d(in_channels, num_classes, act=nn.ReLU(), use_signal_from_classifier = self.use_signal_from_classifier)
+        self.cbn_relu_second = cbn.ConditionalBatchNorm2d(out_channels, num_classes, act=nn.ReLU(), use_signal_from_classifier = self.use_signal_from_classifier)
         self.upsample_conv = nn.Sequential(
             upsample,
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),

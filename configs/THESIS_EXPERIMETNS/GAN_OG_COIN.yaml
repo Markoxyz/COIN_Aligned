@@ -1,5 +1,5 @@
 task_name: counterfactual_inpainting
-logging_dir: /scratch/project_465001979/coin_training_logs/GAN/FINAL_EXPERIMENT
+logging_dir: /scratch/project_465001979/coin_training_logs/GAN/FINAL_EXPERIMENT_BALANCED
 
 seed: 777
 sample_interval: 50
@@ -21,7 +21,7 @@ dataset:
   img_size: [256, 256] # hxw
   use_sampler: True
   reset_sampler: True
-  num_workers: 28
+  num_workers: 7
   imagenet_norm: False # mean=[0.5], std=[0.5]
   root_dir: null
   augs: [] # only resize and norm
@@ -29,7 +29,7 @@ dataset:
   datasets:
     - kind: tuh
       root_dir: /projappl/project_465001111/ct_data/kidney
-      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/TUH_LOSS_BALANCER/new_splits
+      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/THESIS_EXPERIMETNS/thesis_splits
       # TUH_LABEL_NAMES = {
       #     1: "kidney",
       #     2: "tumor",
@@ -104,4 +104,4 @@ model:
   # classifier parameters
   classifier_kind: efficientnet_v2_s
   n_classes: 1 # number of classes in the classifier
-  classifier_ckpt: /scratch/project_465001979/coin_training_logs/classification/FINAL_EXPERIMENT/efficientnet_v2_s-May-01-2025_02+50PM-fde0568-OG_COIN_CLASSIFIER/checkpoints/checkpoint_-2.pth
+  classifier_ckpt: /scratch/project_465001979/coin_training_logs/classification/FINAL_EXPERIMENT_BALANCED/efficientnet_v2_s-May-05-2025_04+13PM-fde0568-OG_COIN_CLASSIFIER/checkpoints/checkpoint_-2.pth

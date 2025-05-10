@@ -47,10 +47,12 @@ class CounterfactualCGAN(nn.Module):
         # from the classifier probability for the explanation class using `posterior2bin` function
         self.num_bins = opt.num_bins  # number of bins for explanation
         self.ptb_based = opt.get('ptb_based', False)
+        self.use_signal_from_classifier =  opt.get('use_signal_from_classifier', False)
+        self.original_discriminator = opt.get('original_discriminator', False)
         
         self.enc = ResBlocksEncoder(opt.in_channels, **opt.get('enc_params', {}))
-        self.gen = ResBlocksGenerator(self.num_bins, in_channels=self.enc.out_channels, **opt.get('gen_params', {}))
-        self.disc = ResBlocksDiscriminator(self.num_bins, opt.in_channels, **opt.get('disc_params', {}))
+        self.gen = ResBlocksGenerator(self.num_bins, in_channels=self.enc.out_channels, **opt.get('gen_params', {}), use_signal_from_classifier = self.use_signal_from_classifier)
+        self.disc = ResBlocksDiscriminator(self.num_bins, opt.in_channels, **opt.get('disc_params', {}),original_discriminator = self.original_discriminator)
 
         # black box classifier
         self.n_classes = opt.n_classes

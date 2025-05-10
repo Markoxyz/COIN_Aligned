@@ -31,8 +31,10 @@ class TUHDataset_pairs(torch.utils.data.Dataset):
         assert scan_names, f'No scans found in split: {self.ann_path}'
         
         
+        count_of_files_used = 0
+        
         # THIS IS ALL BECAUSE OF THE WAY THE DATA IS ORGANIZED
-        ## TRAIN
+        ## TUH_TRAIN
         # CASES
         scans_dir = self.root_dir / 'tuh_train' / 'cases' / 'images' / 'train'
         labels_dir = self.root_dir / 'tuh_train' / 'cases' / 'labels' / 'train'
@@ -45,11 +47,13 @@ class TUHDataset_pairs(torch.utils.data.Dataset):
                 continue
             # self.scans.append(CTScan(sp, labels_dir / sp.parent.name / sname, **scan_params))
             self.scans.append(CTScan(sp, labels_dir / sname, **scan_params))
+            count_of_files_used += 1
 
-
+        ## TUH_TRAIN
         # CONTROLS
         scans_dir = self.root_dir / 'tuh_train' / 'controls' / 'images' / 'train'
         labels_dir = self.root_dir / 'tuh_train' / 'controls' / 'labels' / 'train'
+        
         for i, sp in enumerate(scans_dir.rglob('*.nii.gz')):
             if i > limit_scans:
                 break
@@ -58,9 +62,10 @@ class TUHDataset_pairs(torch.utils.data.Dataset):
                 continue
             # self.scans.append(CTScan(sp, labels_dir / sp.parent.name / sname, **scan_params))
             self.scans.append(CTScan(sp, labels_dir / sname, **scan_params))
+            count_of_files_used += 1
         
-        ### TEST
-        # CASES
+        ### TUH_TEST
+        # CASES _ TEST
         scans_dir = self.root_dir / 'tuh_test' / 'cases' / 'images' / 'test'
         labels_dir = self.root_dir / 'tuh_test' / 'cases' / 'labels' / 'test'
 
@@ -72,8 +77,9 @@ class TUHDataset_pairs(torch.utils.data.Dataset):
                 continue
             # self.scans.append(CTScan(sp, labels_dir / sp.parent.name / sname, **scan_params))
             self.scans.append(CTScan(sp, labels_dir / sname, **scan_params))
+            count_of_files_used += 1
 
-        #CONTROLS 
+        #CONTROLS _ TEST
         scans_dir = self.root_dir / 'tuh_test' / 'controls' / 'images' / 'test'
         labels_dir = self.root_dir / 'tuh_test' / 'controls' / 'labels' / 'test'
 
@@ -85,8 +91,41 @@ class TUHDataset_pairs(torch.utils.data.Dataset):
                 continue
             # self.scans.append(CTScan(sp, labels_dir / sp.parent.name / sname, **scan_params))
             self.scans.append(CTScan(sp, labels_dir / sname, **scan_params))
+            count_of_files_used += 1
+            
+            
+        ### TEST ################################# 
+        # CASES _train
+        scans_dir = self.root_dir / 'tuh_test' / 'cases' / 'images' / 'train'
+        labels_dir = self.root_dir / 'tuh_test' / 'cases' / 'labels' / 'train'
+
+        for i, sp in enumerate(scans_dir.rglob('*.nii.gz')):
+            if i > limit_scans:
+                break
+            sname = sp.name.replace('_0000', '')
+            if sname not in scan_names:
+                continue
+            # self.scans.append(CTScan(sp, labels_dir / sp.parent.name / sname, **scan_params))
+            self.scans.append(CTScan(sp, labels_dir / sname, **scan_params))
+            count_of_files_used += 1
+
+        #CONTROLS _train
+        scans_dir = self.root_dir / 'tuh_test' / 'controls' / 'images' / 'train'
+        labels_dir = self.root_dir / 'tuh_test' / 'controls' / 'labels' / 'train'
+
+        for i, sp in enumerate(scans_dir.rglob('*.nii.gz')):
+            if i > limit_scans:
+                break
+            sname = sp.name.replace('_0000', '')
+            if sname not in scan_names:
+                continue
+            # self.scans.append(CTScan(sp, labels_dir / sp.parent.name / sname, **scan_params))
+            self.scans.append(CTScan(sp, labels_dir / sname, **scan_params))
+            count_of_files_used += 1
 
         # Remove elements from self.scans that have length 0
+        
+        print(f'[TUH dataset] Number of scan USED:', count_of_files_used)
 
         self.scans_dataset = ConcatDataset(self.scans)
         self.classes = self.scans[0].classes

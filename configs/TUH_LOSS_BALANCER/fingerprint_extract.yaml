@@ -6,8 +6,8 @@ sample_interval: 30
 n_epochs: 40
 #epoch_steps: 50
 
-logging_dir: /scratch/project_465001979/coin_training_logs/classification/V2_classifiers
-experiment_name: Classifier_MORE_HOLES
+logging_dir: /scratch/project_465001111/coin_training_logs/classification/V2_classifiers
+experiment_name: Classifier_brightness_aug
 checkpoint_freq: 5
 
 dataset:
@@ -19,12 +19,12 @@ dataset:
   num_workers: 7
   imagenet_norm: False # mean=[0.5], std=[0.5]
   root_dir: null
-  augs: [hflip, vflip, shift_scale_rotate, black_holes]  # only resize and norm
+  augs: []  # only resize and norm
 
   datasets:
     - kind: tuh
       root_dir: /projappl/project_465001111/ct_data/kidney
-      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/TUH_LOSS_BALANCER/new_splits
+      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/THESIS_EXPERIMETNS/thesis_splits
 
       # TUH_LABEL_NAMES = {
       #     1: "kidney",

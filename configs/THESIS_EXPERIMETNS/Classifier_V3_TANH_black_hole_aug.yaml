@@ -3,28 +3,28 @@ task_name: classification
 seed: 777
 sample_interval: 30
 
-n_epochs: 40
-#epoch_steps: 50
+n_epochs: 1000
+epoch_steps: 50
 
-logging_dir: /scratch/project_465001979/coin_training_logs/classification/V2_classifiers
-experiment_name: Classifier_MORE_HOLES
-checkpoint_freq: 5
+logging_dir: /scratch/project_465001979/coin_training_logs/classification/FINAL_EXPERIMENT_BALANCED
+experiment_name: CLASSIFIER_WITH_BLACK_HOLE_AUG
+checkpoint_freq: 1
 
 dataset:
   kind: merged
-  batch_size: 128
+  batch_size: 256
   img_size: [256, 256] # hxw
   use_sampler: True
   reset_sampler: True
   num_workers: 7
   imagenet_norm: False # mean=[0.5], std=[0.5]
   root_dir: null
-  augs: [hflip, vflip, shift_scale_rotate, black_holes]  # only resize and norm
+  augs: [hflip, vflip, shift_scale_rotate, tanh, black_holes] # only resize and norm
 
   datasets:
     - kind: tuh
       root_dir: /projappl/project_465001111/ct_data/kidney
-      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/TUH_LOSS_BALANCER/new_splits
+      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/THESIS_EXPERIMETNS/thesis_splits
 
       # TUH_LABEL_NAMES = {
       #     1: "kidney",
@@ -59,7 +59,7 @@ model:
   loss: bce
 
   # optimizer's parameters
-  lr: 0.00005
+  lr: 0.0003
   b1: 0.9
   b2: 0.999
-  weight_decay: 0.001
+  weight_decay: 0.0001

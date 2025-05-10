@@ -38,7 +38,8 @@ def get_transforms(opt):
         train_ops.append(albu.VerticalFlip(p=0.1))
     if 'shift_scale_rotate' in opt.augs:
         train_ops.append(albu.ShiftScaleRotate(scale_limit=0.1, rotate_limit=10, shift_limit=0.07, p=0.5, border_mode=cv2.BORDER_CONSTANT, value=0))
-        
+    if 'contrast_brightness' in opt.augs:
+        train_ops.append(albu.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1, p=0.5))
 
     data_transforms = {
         'train': albu.Compose(

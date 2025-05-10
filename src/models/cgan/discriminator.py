@@ -43,9 +43,12 @@ class ResBlocksDiscriminator(nn.Module):
         downsample_scales=[2, 2, 2, 2, 2, 1], 
         out_channels=[64, 128, 256, 512, 1024, 1024],
         output_logits=True,
+        original_discriminator = False,
     ):
         super().__init__()
         assert len(downsample_scales) == len(out_channels)
+        
+        self.original_discriminator = original_discriminator
         
         self.n_blocks = len(out_channels)
         
@@ -76,8 +79,9 @@ class ResBlocksDiscriminator(nn.Module):
 
     def forward(self, imgs, labels=None):
         outs = imgs
-        #labels = labels if labels is not None else torch.zeros(imgs.size(0), dtype=torch.long, device=imgs.device) ########### to use r1 and r2 losses.
-        #labels = labels.view(-1)                                                                                   ########### to use r1 and r2 losses.
+        if self.original_discriminator:
+            labels = labels if labels is not None else torch.zeros(imgs.size(0), dtype=torch.long, device=imgs.device) ########### to use r1 and r2 losses.
+            labels = labels.view(-1)                                                                                   ########### to use r1 and r2 losses.
         for b in self.blocks:
             outs = b(outs)
         # gsp = outs.view(*outs.shape[:2])  # (B, 1024, 1, 1)
@@ -89,17 +93,20 @@ class ResBlocksDiscriminator(nn.Module):
 
         # embed the labels (B, 1) -> (B, 1024)
         
-        #embed = self.embd(labels)                                                                                 ########### to use r1 and r2 losses.
+        final_add = sndense                                                                                       ########### to use r1 and r2 losses.
+        
+        if self.original_discriminator:
+            embed = self.embd(labels)                                                                                 ########### to use r1 and r2 losses.
         
         # print('EMBED', embed.shape)
         
-        #inner_prod = (gsp * embed).sum(dim=1, keepdims=True)  # (B, 1)                                            ########### to use r1 and r2 losses.
+            inner_prod = (gsp * embed).sum(dim=1, keepdims=True)  # (B, 1)                                            ########### to use r1 and r2 losses.
+            final_add = sndense + inner_prod                                                                         ########### to use r1 and r2 losses.
         
         
         # print('INNER', inner_prod.shape)
 
-        #final_add = sndense + inner_prod                                                                         ########### to use r1 and r2 losses.
-        final_add = sndense                                                                                       ########### to use r1 and r2 losses.
+        
         return final_add if self.output_logits else F.logsigmoid(final_add).exp()
 
 

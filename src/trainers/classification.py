@@ -20,6 +20,9 @@ class ClassificationTrainer(BaseTrainer):
 
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.task = 'binary' if opt.model.n_classes == 1 else 'multiclass'
+        
+        self.apply_tanh_to_train = True if 'tanh' in self.opt.dataset.augs else False
+        print(f'Apply tanh to train: {self.apply_tanh_to_train}')
 
         metric_list = [
             Precision(num_classes=opt.model.n_classes, task=self.task, average='macro'),
@@ -28,6 +31,8 @@ class ClassificationTrainer(BaseTrainer):
         ]
         self.train_metrics = MetricCollection(metric_list).to(self.device)
         self.val_metrics = self.train_metrics.clone()
+        
+        self.tanh_f1_metric = F1Score(num_classes=opt.model.n_classes, task=self.task, average='macro').to(self.device) ###########
 
     def get_dataloaders(self) -> tuple:
         transforms = get_transforms(self.opt.dataset)
@@ -68,6 +73,11 @@ class ClassificationTrainer(BaseTrainer):
                 if i == epoch_steps:
                     break
                 batch = {k: batch[k].to(self.device) for k in {'image', 'masks', 'label'}}
+                
+                if self.apply_tanh_to_train:
+                    # Apply tanh to input images
+                    batch['image'] = torch.tanh(batch['image'])
+                
                 outs = self.model(batch, training=True, global_step=self.batches_done)
                 
                 avg_pos_to_neg_ratio += batch['label'].sum() / batch['label'].shape[0]
@@ -92,13 +102,29 @@ class ClassificationTrainer(BaseTrainer):
     def validation_epoch(self, loader: torch.utils.data.DataLoader) -> None:
         self.model.eval()
         self.val_metrics.reset()
+        self.tanh_f1_metric.reset() #####
         losses = []
         num_pos = 0
+        
         for _, batch in tqdm(enumerate(loader), desc=f'Validation epoch: {self.current_epoch}', leave=False, total=len(loader)):
             batch = {k: batch[k].to(self.device) for k in {'image', 'masks', 'label'}}
             # print('val', batch['label'].sum())
             num_pos += batch['label'].sum()
             outs = self.model(batch, training=False)
+            
+            # Apply tanh to input images
+            tanh_images = torch.tanh(batch['image'])
+            tanh_batch = batch.copy()
+            tanh_batch['image'] = tanh_images
+
+            # Forward pass
+            outs2 = self.model(tanh_batch, training=False)
+            preds = outs2['preds']
+
+            predicted_labels = (preds > 0.5).long()
+
+            # Update tanh-based F1 metric
+            self.tanh_f1_metric.update(predicted_labels, batch['label'])
             
             self.val_metrics.update(outs['preds'], batch['label'])
             losses.append(outs['loss'])
@@ -109,4 +135,8 @@ class ClassificationTrainer(BaseTrainer):
             '[Finished validation epoch %d/%d] [Epoch loss: %f] [Epoch F1 score: %f]'
             % (self.current_epoch, self.opt.n_epochs, epoch_stats['loss'], epoch_stats[f'{self.task.title()}F1Score'])
         )
+        
+        tanh_f1_score = self.tanh_f1_metric.compute()
+        self.logger.info(f'[Tanh input F1 score: {tanh_f1_score:.4f}]')
+        
         return epoch_stats

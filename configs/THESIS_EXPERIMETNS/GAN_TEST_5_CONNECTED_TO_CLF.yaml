@@ -1,14 +1,14 @@
 task_name: counterfactual_inpainting
-logging_dir: /scratch/project_465001979/coin_training_logs/GAN/V19_NEW_SPLIT
+logging_dir: /scratch/project_465001979/coin_training_logs/GAN/FINAL_EXPERIMENT_BALANCED
 seed: 777
 sample_interval: 50
 
-n_epochs: 51
+n_epochs: 100
 #epoch_steps: 1000
 
-experiment_name: NEW_SPLIT_NO_REC
+experiment_name: EXPERIMENT_5_CONNECTED_TO_CLF
 checkpoint_freq: 1
-eval_counter_freq: 5
+eval_counter_freq: 1
 cf_gt_seg_mask_idx: 2
 apply_tanh_to_non_gen_imgs_in_eval: True
 log_visualizations: false
@@ -30,7 +30,7 @@ dataset:
   datasets:
     - kind: tuh_pairs
       root_dir: /projappl/project_465001111/ct_data/kidney
-      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/TUH_LOSS_BALANCER/new_splits
+      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/THESIS_EXPERIMETNS/thesis_splits
 
       # TUH_LABEL_NAMES = {
       #     1: "kidney",
@@ -98,7 +98,6 @@ model:
     use_snconv: false
     # indices are specifided w.r.t bottleneck (index=0) and upwards
     skip_conn: [1, 2, 3, 4]
-    ptb_fuse_type: skip_add_shifted_normalize_tanh
 
   disc_params:
     downsample_scales: [2, 2, 2, 2, 2]
@@ -111,4 +110,4 @@ model:
   # classifier parameters
   classifier_kind: efficientnet_v2_s
   n_classes: 1 # number of classes in the classifier
-  classifier_ckpt: /scratch/project_465001111/coin_training_logs/classification/V2_classifiers/efficientnet_v2_s-April-28-2025_02+24PM-fde0568-Classifier_brightness_aug/checkpoints/checkpoint_15.pth
+  classifier_ckpt: /scratch/project_465001979/coin_training_logs/classification/FINAL_EXPERIMENT_BALANCED/efficientnet_v2_s-May-05-2025_04+13PM-fde0568-OG_COIN_CLASSIFIER/checkpoints/checkpoint_-2.pth

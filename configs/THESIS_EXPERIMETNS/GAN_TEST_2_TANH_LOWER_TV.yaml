@@ -1,16 +1,17 @@
 task_name: counterfactual_inpainting
-logging_dir: /scratch/project_465001979/coin_training_logs/GAN/V19_NEW_SPLIT
+logging_dir: /scratch/project_465001979/coin_training_logs/GAN/FINAL_EXPERIMENT_BALANCED
+
 seed: 777
 sample_interval: 50
 
-n_epochs: 51
-#epoch_steps: 1000
+n_epochs: 100
+# epoch_steps: 800
 
-experiment_name: NEW_SPLIT_NO_REC
+experiment_name: TANH_MODIFICATION_LOWER_TV
 checkpoint_freq: 1
-eval_counter_freq: 5
-cf_gt_seg_mask_idx: 2
+eval_counter_freq: 1
 apply_tanh_to_non_gen_imgs_in_eval: True
+cf_gt_seg_mask_idx: 2
 log_visualizations: false
 
 compute_norms: False
@@ -20,7 +21,6 @@ dataset:
   batch_size: 16
   img_size: [256, 256] # hxw
   use_sampler: True
-  use_only_1_class: True
   reset_sampler: True
   num_workers: 7
   imagenet_norm: False # mean=[0.5], std=[0.5]
@@ -28,10 +28,9 @@ dataset:
   augs: [] # only resize and norm
 
   datasets:
-    - kind: tuh_pairs
+    - kind: tuh
       root_dir: /projappl/project_465001111/ct_data/kidney
-      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/TUH_LOSS_BALANCER/new_splits
-
+      split_dir: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/THESIS_EXPERIMETNS/thesis_splits
       # TUH_LABEL_NAMES = {
       #     1: "kidney",
       #     2: "tumor",
@@ -59,28 +58,24 @@ model:
   ptb_based: True # perturbation based generator
   in_channels: 1
   gen_update_freq: 5
-  adv_loss: long_live_gan
-  loss_balancer: False
+  adv_loss: mse
   lambda_adv: 1.0
-  adv_gamma: 50.0
   lambda_kl: 1.0
-  always_generate_healthy: True
   lambda_rec: 0.0
-  lambda_iou: 0.0
-  reconstruction_dilation: True
-  dilation_kernel_size: 5
-  lambda_tv: 0.0005
+  lambda_tv: 0.00005
   lambda_minc: 0.0
-  apply_tanh_to_non_gen_imgs: True
   # precision: 16-mixed
   precision: '32'
 
-  original_discriminator: False # maening use lables in discriminator
-  use_signal_from_classifier: True # MEANING USE Classifier connection
-  align_discriminator : True # Use together with tuh_paired dataset and long live gan
+  apply_tanh_to_non_gen_imgs: True # apply tanh to non-gen images
+  
+  cyclic_rec: True
+
+  original_discriminator: True
+
   
   # optimizers' parameters
-  lr: 0.0001 # USED TO BE 0.0002
+  lr: 0.0002
   b1: 0.0
   b2: 0.999
   
@@ -98,12 +93,13 @@ model:
     use_snconv: false
     # indices are specifided w.r.t bottleneck (index=0) and upwards
     skip_conn: [1, 2, 3, 4]
-    ptb_fuse_type: skip_add_shifted_normalize_tanh
 
   disc_params:
     downsample_scales: [2, 2, 2, 2, 2]
     out_channels: [64, 128, 256, 512, 1024]
 
+
+  use_conditioning: true # use cGAN
   # counterfactual parameters
   num_bins: 2 # number of discrete bins into which posterior probabilities are sorted
   explain_class_idx: 0 # normal/not-normal kidneys
@@ -111,4 +107,4 @@ model:
   # classifier parameters
   classifier_kind: efficientnet_v2_s
   n_classes: 1 # number of classes in the classifier
-  classifier_ckpt: /scratch/project_465001111/coin_training_logs/classification/V2_classifiers/efficientnet_v2_s-April-28-2025_02+24PM-fde0568-Classifier_brightness_aug/checkpoints/checkpoint_15.pth
+  classifier_ckpt: /scratch/project_465001979/coin_training_logs/classification/FINAL_EXPERIMENT_BALANCED/efficientnet_v2_s-May-05-2025_04+13PM-fde0568-OG_COIN_CLASSIFIER/checkpoints/checkpoint_-2.pth

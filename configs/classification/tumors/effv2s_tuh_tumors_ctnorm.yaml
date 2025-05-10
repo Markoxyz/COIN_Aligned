@@ -6,9 +6,9 @@ sample_interval: 30
 n_epochs: 1000
 epoch_steps: 50
 
-logging_dir: ./training_logs/classification/tuh-full-ctnorm
-experiment_name: tuh_effv2s_aug_tm-area-split_tm-thresh-1000_lr2_figaug_fgtumor
-checkpoint_freq: 10
+logging_dir: /scratch/project_465001979/coin_training_logs/classification/FINAL_EXPERIMENT
+experiment_name: OG_COIN_CLASSIFIER
+checkpoint_freq: 5
 
 dataset:
   kind: merged
@@ -36,7 +36,7 @@ dataset:
         norm_scheme: &norm
           kind: ct
           rescale: True
-          fingerprint_path: ./data/tuh_dataset_full/dataset_fingerprint_fg_tumor.json
+          fingerprint_path: /users/lillemag/makatoo/coin_test/counterfactual-search/configs/TUH_LOSS_BALANCER/dataset_fingerprint.json
         slicing_direction: axial
         classes: ['empty', 'kidney', 'tumor', 'cyst']
         
