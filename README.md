@@ -5,7 +5,7 @@ Master’s Thesis – University of Tartu, 2025
 Author: Marko Lillemägi  
 Supervisors: Joonas Ariva, MSc and Dmytro Fishman, PhD
 
-📄 [Read the full thesis (PDF)](https://s3.hpc.ut.ee/register.cs.ut.ee/thesis/2025/other/78c1f046-06f1-4c46-852f-6ab9aaf0e18c/graduation_pdf_file_100MB/Lillem%C3%A4gi_computer_science_2025.pdf)
+📄 [Read the full thesis (PDF)](https://thesis.cs.ut.ee/78c1f046-06f1-4c46-852f-6ab9aaf0e18c)
 
 ---
 
