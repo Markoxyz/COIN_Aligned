@@ -22,5 +22,7 @@ This repository contains the code and configurations used in my MSc thesis work.
 
 ---
 
+Thesis configuration files are located: [HERE](https://github.com/Markoxyz/COIN_Aligned/tree/main/configs/THESIS_EXPERIMETNS)
+
 
 
